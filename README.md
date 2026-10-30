@@ -20,6 +20,17 @@ Visual da direção 1a (verde-menta, escuro). Funciona offline; com Supabase con
 ## Trazer a lista de alimentos da planilha
 Na aba **Alimentos**: Arquivo > Fazer download > CSV. No app: Ajustes > Importar alimentos (CSV). Colunas esperadas: Alimento; Grupo; Unidade; Porção; Kcal; P; C; G.
 
+## Plano alimentar (nutricionista)
+Em Ajustes > Plano alimentar. As metas do plano (kcal, proteína, carbo e gordura, para dia de treino e de descanso) substituem o cálculo automático em todo o app. Sem plano, o app continua calculando a meta.
+- **Importar o plano**: envie um arquivo (CSV, TXT ou JSON) ou cole o texto. De PDF ou Word, copie o texto e cole. Antes de salvar há uma tela de conferência; itens sem calorias são marcados com ⚠ e podem ser preenchidos ou removidos.
+- **Texto livre**: uma linha com o nome da refeição (Café da manhã, Almoço, 1ª refeição...) e, abaixo, os itens (`150 g de arroz`, `2 ovos`, `Frango 120 g`). Calorias e macros vêm da tabela de alimentos; se a linha tiver `198 kcal`, esse valor vale.
+- **CSV**: use "Baixar modelo CSV". Colunas `Refeição;Alimento;Qtd;Unid;Kcal;P;C;G` (kcal e macros em branco são buscados na tabela). Linhas `Meta;Treino;kcal;P;C;G` e `Meta;Descanso;...` definem as metas do dia.
+- **Lançar**: na tela Lançar, a refeição escolhida mostra os itens do plano com a quantidade prescrita; é possível lançar item a item ou tudo de uma vez.
+- **Importar do app antigo** também traz a aba Metas e o grupo "Plano alimentar" da planilha.
+
+## Gasto diário do Apple Watch
+Na tela Hoje, o campo "Gasto do dia (Apple Watch)" recebe o total do dia (ativas + em repouso). Ele vale para o saldo da semana e do histórico. Campo vazio volta ao gasto estimado. O app não lê o Apple Saúde sozinho (um PWA no iPhone não tem acesso); o valor é digitado.
+
 ## Segurança
 - Login por e-mail e senha (Supabase Auth); a sessão renova sozinha.
 - Regras RLS: cada conta só lê e grava as próprias linhas. Validações de faixa no banco.

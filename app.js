@@ -13,14 +13,14 @@ const toast=t=>{const e=$("#toast");e.textContent=t;e.classList.add("on");clearT
 
 /* ---------- Estado local (offline primeiro) ---------- */
 const KEY="pc3";
-const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1},customFoods:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false};
+const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1},customFoods:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null};
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){S={}}
 S={...structuredClone(DEF),...S};S.settings={...DEF.settings,...S.settings,plan:{...DEF.settings.plan,...(S.settings||{}).plan}};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Sem espaço para salvar no aparelho")}};
 const rowKey=(t,r)=>t==="days"?r.date:t==="user_state"?"s":r.id;
 function queue(t,row,quiet){const k=rowKey(t,row);S.outbox=S.outbox.filter(o=>!(o.t===t&&o.k===k));S.outbox.push({t,k,row});if(!quiet){save();Cloud.sync()}}
-const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods}};
+const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods,dieta:S.dieta}};
 const queueState=()=>{if(S.profile)queue("user_state",stateRow())};
 
 /* ---------- Nuvem (Supabase: login + RLS) ---------- */
@@ -65,7 +65,8 @@ const Cloud={
     for(const r of us){if(r.updated_at>max)max=r.updated_at;if(pend.has("user_states")||!r.data)continue;
       const d=r.data;if(d.profile){S.profile=d.profile;S.onboarded=true}
       if(d.settings)S.settings={...S.settings,...d.settings,pinHash:S.settings.pinHash,pinSalt:S.settings.pinSalt};
-      if(d.customFoods)S.customFoods=d.customFoods}
+      if(d.customFoods)S.customFoods=d.customFoods;
+      if(d.dieta!==undefined)S.dieta=d.dieta}
     if(max)S.last=max;
     if(!$(".scroll input:focus"))render();
   },
@@ -86,7 +87,9 @@ const day=d=>S.days[d]||(S.days[d]={tipo:"",treino:"",peso:null,gasto:null});
 const ents=d=>S.entries.filter(e=>e.date===d&&!e.deleted);
 const sum=l=>l.reduce((a,e)=>({k:a.k+e.k,p:a.p+e.p,c:a.c+e.c,g:a.g+e.g}),{k:0,p:0,c:0,g:0});
 function calcGasto(){const p=S.profile;if(!p)return null;const tmb=10*p.peso+6.25*p.alt-5*p.idade+(p.sexo==="f"?-161:5),rest=tmb*1.2,pl=S.settings.plan,MET=[4.5,6,8][pl.int],extra=pl.dias>0?(MET-1)*p.peso*pl.min/60:0;return{tmb,rest,trein:rest+extra,extra,peso:p.peso}}
-function metaFor(tipo){const c=calcGasto();if(!c)return{k:0,p:0,c:0,g:0,gasto:0};const gasto=tipo==="Treino"?c.trein:c.rest,k=Math.round(gasto+[-400,0,300][S.profile.goal||0]),p=Math.round(1.8*c.peso),g=Math.round(.9*c.peso);return{k,p,g,c:Math.max(0,Math.round((k-4*p-9*g)/4)),gasto:Math.round(gasto)}}
+function metaFor(tipo){const c=calcGasto(),pm=S.dieta&&S.dieta.metas,pk=pm&&(pm[tipo==="Treino"?"treino":"descanso"]||pm.treino||pm.descanso);
+  if(pk&&pk.k>0){const g=pk.gasto>0?pk.gasto:c?(tipo==="Treino"?c.trein:c.rest):0;return{k:Math.round(pk.k),p:Math.round(pk.p),c:Math.round(pk.c),g:Math.round(pk.g),gasto:Math.round(g),plano:true}}
+  if(!c)return{k:0,p:0,c:0,g:0,gasto:0};const gasto=tipo==="Treino"?c.trein:c.rest,k=Math.round(gasto+[-400,0,300][S.profile.goal||0]),p=Math.round(1.8*c.peso),g=Math.round(.9*c.peso);return{k,p,g,c:Math.max(0,Math.round((k-4*p-9*g)/4)),gasto:Math.round(gasto)}}
 function search(q){
   const tk=norm(parseQ(q).name).split(" ").filter(Boolean);
   const use=f=>S.usage[f.n]||0;
@@ -123,8 +126,9 @@ function vHoje(){
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),es=ents(cur),t=sum(es),pct=m.k?Math.min(1,t.k/m.k):0,falta=m.k-t.k,dt=new Date(cur+"T12:00:00");
   return page(`<div class="top"><div><div class="mu">${cur===today()?"Hoje, ":""}${dt.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>Olá, ${esc(S.profile?.nome||"")}</h1></div><span class="chip"><i class="dot ${stat.ok?"ok":""}"></i>${esc(stat.t)}</span></div>
   <div class="dnav"><button data-a="day" data-n="-1" aria-label="Dia anterior">‹</button><div class="seg"><button data-a="tipo" data-t="Descanso" class="${tipo==="Descanso"?"on":""}">Descanso</button><button data-a="tipo" data-t="Treino" class="${tipo==="Treino"?"on":""}">Treino</button></div><button data-a="day" data-n="1" aria-label="Próximo dia" ${cur>=today()?"disabled style='opacity:.3'":""}>›</button></div>
-  <div class="card" style="padding:22px 18px;text-align:center"><div class="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--ln)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="${falta<0?"var(--bad)":"var(--ac)"}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(pct*326.7).toFixed(1)} 326.7" transform="rotate(-90 60 60)"/></svg><div><b>${fmt(t.k)}</b><small>de ${fmt(m.k)} kcal</small></div></div><div class="${falta<0?"bad":"good"}" style="margin-top:12px;font-weight:600;font-size:14px">${m.k?(falta>=0?`Faltam ${fmt(falta)} kcal`:`Passou ${fmt(-falta)} kcal`):"Defina seus dados em Ajustes"}</div></div>
+  <div class="card" style="padding:22px 18px;text-align:center"><div class="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--ln)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="${falta<0?"var(--bad)":"var(--ac)"}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(pct*326.7).toFixed(1)} 326.7" transform="rotate(-90 60 60)"/></svg><div><b>${fmt(t.k)}</b><small>de ${fmt(m.k)} kcal</small></div></div><div class="${falta<0?"bad":"good"}" style="margin-top:12px;font-weight:600;font-size:14px">${m.k?(falta>=0?`Faltam ${fmt(falta)} kcal`:`Passou ${fmt(-falta)} kcal`):"Defina seus dados em Ajustes"}</div>${m.plano?'<div class="mu" style="font-size:11px;margin-top:4px">Meta do seu plano alimentar</div>':""}</div>
   <div class="grid3">${[["Proteína","p"],["Carbo","c"],["Gordura","g"]].map(([n,f])=>`<div class="mini"><small>${n}</small><b>${fmt(t[f])}</b><small style="display:inline"> g</small><div class="bar"><i style="width:${m[f]?Math.min(100,t[f]/m[f]*100):0}%"></i></div></div>`).join("")}</div>
+  <div class="card" style="margin-top:12px"><div class="fld"><label for="gw">Gasto do dia (Apple Watch)</label><div class="row" style="border:0;padding:0"><input id="gw" inputmode="numeric" value="${D.gasto||""}" placeholder="Estimado: ${fmt(m.gasto)} kcal"><button class="btn" style="width:auto;padding:14px 20px" data-a="saveGasto">Salvar</button></div></div><div class="mu" style="font-size:12px;margin-top:8px">${D.gasto?"Usando o gasto que você informou.":"Sem valor: usando o gasto estimado."} Informe o total do dia (ativas + em repouso) como aparece no app Atividade do relógio.</div></div>
   <h2>Refeições</h2><div class="card flush">${S.settings.meals.map((ml,i)=>{const l=es.filter(e=>e.meal===ml),k=sum(l).k;return`<button class="row" data-a="meal" data-i="${i}"><span class="ck ${l.length?"on":""}">${l.length?"✓":""}</span><span class="n"><b>${esc(ml)}</b><small>${l.length?`${l.length} ${l.length>1?"itens":"item"}`:"Não lançado"}</small></span><b>${l.length?fmt(k):"+"}</b></button>`}).join("")}</div>
   ${weekSummary()}`);
 }
@@ -139,9 +143,13 @@ function weekSummary(){
 }
 function week(){const d=new Date(cur+"T12:00:00"),dif=(d.getDay()-S.settings.semIni+7)%7;d.setDate(d.getDate()-dif);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return iso(x)})}
 function foodList(){return search(q).map(f=>{const p=parseQ(q);return`<button class="food" data-a="add" data-n="${esc(f.n)}"><span class="n">${esc(f.n)}<small>${f.por===100&&f.u!=="unid"?"100 "+f.u:f.por+" "+f.u} · P ${fmt(f.p,1)} C ${fmt(f.c,1)} G ${fmt(f.f,1)}</small></span><span class="k">${fmt(f.k)}</span><span class="ck on">＋</span></button>`}).join("")||`<p class="mu">Nada encontrado.</p><button class="btn ghost" data-a="newFood">＋ Cadastrar “${esc(parseQ(q).name)}”</button>`}
+function planBox(){
+  const r=S.dieta&&S.dieta.refs&&S.dieta.refs[meal];if(!r||!r.itens.length)return"";
+  return`<div class="lbl">Seu plano · ${esc(r.nome)}</div><div class="card flush">${r.itens.map((it,i)=>`<button class="row" data-a="addPlan" data-i="${i}"><span class="n"><b>${esc(it.n)}</b><small>${fmt(it.q)} ${un(it.u)} · P ${fmt(it.p,1)} C ${fmt(it.c,1)} G ${fmt(it.g,1)}</small></span><b>${fmt(it.k)}</b></button>`).join("")}</div><button class="btn ghost" style="margin-bottom:6px" data-a="planAll">＋ Lançar tudo do plano</button>`}
 function vLancar(){
   const ml=S.settings.meals[meal],done=ents(cur).filter(e=>e.meal===ml),t=draft.reduce((a,x)=>a+x.f.k*x.q/x.f.por,0);
   return page(`<h1 style="margin-bottom:14px">Lançar</h1><div class="chips">${S.settings.meals.map((m,i)=>`<button data-a="meal" data-i="${i}" data-stay="1" class="${i===meal?"on":""}">${esc(m)}</button>`).join("")}</div>
+  ${planBox()}
   <input id="q" value="${esc(q)}" placeholder="Buscar ou digitar “200 g de arroz”" autocomplete="off" enterkeyhint="search">
   ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" inputmode="decimal" aria-label="Quantidade"><span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span><button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
@@ -175,7 +183,7 @@ function vCalc(){
   <div class="mu" style="font-size:12px;margin:16px 0 8px">Minutos por treino</div><div class="row" style="border:0;padding:0"><button class="back" style="margin:0;width:44px;height:44px" data-a="min" data-n="-10">−</button><div style="flex:1;text-align:center;font-size:24px;font-weight:700">${pl.min} <small class="mu" style="font-size:13px;font-weight:400">min</small></div><button class="back" style="margin:0;width:44px;height:44px" data-a="min" data-n="10">＋</button></div>
   <div class="mu" style="font-size:12px;margin:16px 0 8px">Intensidade</div><div class="seg">${["Leve","Moderada","Intensa"].map((n,i)=>`<button data-a="plan" data-k="int" data-v="${i}" class="${pl.int===i?"on":""}">${n}</button>`).join("")}</div></div>
   <div class="grid2"><div class="mini"><small>DIA DE DESCANSO</small><b style="font-size:26px">${fmt(c.rest)}</b><small>kcal</small></div><div class="mini" style="background:var(--ac);color:var(--acf)"><small style="color:var(--acf)">DIA DE TREINO</small><b style="font-size:26px">${fmt(c.trein)}</b><small style="color:var(--acf)">kcal</small></div></div>
-  <div class="card" style="margin-top:12px"><div class="calc"><span>Metabolismo basal</span><b>${fmt(c.tmb)} kcal</b></div><div class="calc"><span>Gasto do treino</span><b>+${fmt(c.extra)} kcal</b></div><div class="calc"><span>Meta (${["perder","manter","ganhar"][S.profile.goal||0]} peso)</span><b>${fmt(metaFor("Treino").k)} / ${fmt(metaFor("Descanso").k)} kcal</b></div></div>
+  <div class="card" style="margin-top:12px"><div class="calc"><span>Metabolismo basal</span><b>${fmt(c.tmb)} kcal</b></div><div class="calc"><span>Gasto do treino</span><b>+${fmt(c.extra)} kcal</b></div><div class="calc"><span>${metaFor("Treino").plano?"Meta (plano alimentar)":"Meta ("+["perder","manter","ganhar"][S.profile.goal||0]+" peso)"}</span><b>${fmt(metaFor("Treino").k)} / ${fmt(metaFor("Descanso").k)} kcal</b></div></div>
   <p class="mu" style="font-size:12px;text-align:center">Fórmula de Mifflin-St Jeor. Proteína 1,8 g/kg, gordura 0,9 g/kg, resto em carboidrato. É uma estimativa.</p>`,{back:"ajustes"});
 }
 function vCad(){
@@ -194,16 +202,16 @@ function vAjustes(){
   const lk=(a,v,n,r="›")=>`<button class="row" data-a="${a}" data-v="${v||""}"><span class="n">${n}</span><span class="mu">${r}</span></button>`;
   const c=calcGasto();
   return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes de refeição","Avisos às 12:30 e 19:00 com o app aberto")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
-  <div class="lbl">Metas</div><div class="card flush">${lk("go","calc","Calculadora de gasto",c?fmt(metaFor("Descanso").k)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
+  <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","calc","Calculadora de gasto",c?fmt(metaFor("Descanso").k)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("go","hist","Histórico")}${lk("go","import","Importar do app antigo")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
-  <p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · versão 2.2</p>`);
+  <p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · versão 2.3</p>`);
 }
 
 function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -232,8 +240,13 @@ async function runImport(url,token,say){
   const get=async p=>{const r=await fetch(url+"?"+new URLSearchParams({token,...p}));let j;try{j=await r.json()}catch(e){throw new Error("resposta inválida do script")}if(!j.ok)throw new Error(j.erro==="token"?"token incorreto":(j.erro||"erro"));return j};
   say("Lendo planilha...");
   const[boot,h]=await Promise.all([get({action:"bootstrap"}),get({action:"hist"})]);
-  let fl=(boot.alimentos||[]).filter(f=>f.g!=="Plano alimentar"&&f.n).map(f=>({n:String(f.n).slice(0,80),g:String(f.g||"Meus alimentos").slice(0,40),u:/unid|^un/i.test(f.u)?"unid":/ml/i.test(f.u)?"ml":"g",por:clamp(f.por,.1,10000)||100,k:clamp(f.k,0,20000),p:clamp(f.p,0,2000),c:clamp(f.c,0,2000),f:clamp(f.f,0,2000)}));
-  if(JSON.stringify(fl).length>120000)fl=fl.filter(f=>f.g==="Meus alimentos");
+  const pa=(boot.alimentos||[]).filter(f=>f.g==="Plano alimentar"&&f.n),metas=cleanMetas(boot.metas),refs=[];
+  for(const f of pa){const m=String(f.n).match(/^\s*(.+?)\s*(?:[-–—:|\/»])\s*(.+)$/),sep=m&&MEALRX.test(norm(m[1])),nome=sep?m[2]:String(f.n),u=/unid|^un/i.test(f.u)?"unid":/ml/i.test(f.u)?"ml":"g";
+    const R=refGet(refs,sep?m[1]:"Itens do plano");if(R.itens.length<60)R.itens.push({n:nome.slice(0,80),q:clamp(f.por,.1,10000)||100,u,k:clamp(f.k,0,20000),p:clamp(f.p,0,2000),c:clamp(f.c,0,2000),g:clamp(f.f,0,2000)})}
+  const old=S.dieta||{};
+  if(metas||refs.length){S.dieta={fonte:"planilha antiga",refs:[],metas:null,...old,em:nowISO()};if(metas&&!(old.metas&&old.metas.treino||old.metas&&old.metas.descanso))S.dieta.metas=metas;if(refs.length&&!(old.refs&&old.refs.length))S.dieta.refs=refs.slice(0,10)}
+  let fl=(boot.alimentos||[]).filter(f=>f.n).map(f=>({n:String(f.n).slice(0,80),g:String(f.g||"Meus alimentos").slice(0,40),u:/unid|^un/i.test(f.u)?"unid":/ml/i.test(f.u)?"ml":"g",por:clamp(f.por,.1,10000)||100,k:clamp(f.k,0,20000),p:clamp(f.p,0,2000),c:clamp(f.c,0,2000),f:clamp(f.f,0,2000)}));
+  if(JSON.stringify(fl).length>120000)fl=fl.filter(f=>f.g==="Meus alimentos"||f.g==="Plano alimentar");
   const names=new Set(fl.map(f=>f.n));S.customFoods=S.customFoods.filter(f=>!names.has(f.n)).concat(fl);
   const dias=h.dias||[];let nd=0,ne=0,i=0;
   for(const d of dias){if(!/^\d{4}-\d{2}-\d{2}$/.test(d.data))continue;const D=S.days[d.data]||(S.days[d.data]={tipo:"",treino:"",peso:null,gasto:null});
@@ -246,10 +259,128 @@ async function runImport(url,token,say){
     for(const r of j.refs||[]){if(!r.nome)continue;const e={id:uid(),date:d.data,meal:canonMeal(r.meal||""),name:String(r.nome).slice(0,120),qty:clamp(r.qtd,0,100000),unit:/unid|^un/i.test(r.unid)?"unid":/ml/i.test(r.unid)?"ml":"g",k:clamp(r.k,0,20000),p:clamp(r.p,0,2000),c:clamp(r.c,0,2000),g:clamp(r.g,0,2000),deleted:false};S.entries.push(e);queue("entries",e,true);ne++}
     S.imported[d.data]=1;if(i%10===0)save()}
   queueState();save();Cloud.sync();
-  return "Pronto: "+ne+" lançamentos, "+nd+" dias e "+fl.length+" alimentos importados. Volte para Hoje.";
+  const np=(S.dieta&&S.dieta.refs||[]).reduce((a,r)=>a+r.itens.length,0),nm=S.dieta&&S.dieta.metas?Object.keys(S.dieta.metas).length:0;
+  return "Pronto: "+ne+" lançamentos, "+nd+" dias e "+fl.length+" alimentos importados. Plano alimentar: "+nm+" meta(s) e "+np+" item(ns). Volte para Hoje.";
 }
+/* ---------- Plano alimentar: metas do nutricionista + refeições com quantidades ---------- */
+const un=u=>u==="unid"?"un":u;
+const UN=(u,d="g")=>{u=norm(u||"");if(!u)return d;if(/^(ml|l|litros?)/.test(u))return"ml";if(/^(g|gr|grs|gramas?|kg)$/.test(u))return"g";return"unid"};
+const UNM=u=>/^(kg|l|litros?)$/i.test(u||"")?1000:1;
+const MEALRX=/^(\d+ (a |o )?refeicao|refeicao \d+|(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava) refeicao|cafe da manha|desjejum|lanche( da (manha|tarde|noite))?|almoco|jantar|janta|ceia|pre treino|pos treino|colacao|refeicao( da tarde)?)\b/;
+const UNRX="kg|gr?s?|gramas?|ml|l|litros?|unidades?|unid|un|fatias?|colher(?:es)?(?:\\s+de\\s+(?:sopa|ch[aá]|sobremesa))?|x[ií]caras?|copos?|por[cç][aãõo]\\w*|scoops?";
+const QRX=new RegExp("^(\\d+(?:[.,]\\d+)?)\\s*(?:("+UNRX+")(?=[\\s.,;:)]|$))?\\s*(?:de\\s+|d[oa]s?\\s+)?(.+)$","i");
+const NRX=new RegExp("^(.+?)\\s*[:–—-]?\\s*\\(?(\\d+(?:[.,]\\d+)?)\\s*("+UNRX+")(?=[\\s.,;:)]|$)\\)?\\s*(.*)$","i");
+const refGet=(refs,nome)=>{let r=refs.find(x=>norm(x.nome)===norm(nome));if(!r){r={nome:String(nome).trim().slice(0,40)||"Refeição",itens:[]};refs.push(r)}return r};
+function findFood(name){const tk=norm(name).split(" ").filter(Boolean);
+  for(let n=tk.length;n>0;n--){const t=tk.slice(0,n),m=foods().filter(f=>{f._n=f._n||norm(f.n);const ws=f._n.split(" ");return t.every(x=>ws.some(w=>w.startsWith(x)||(x.length>3&&x.endsWith("s")&&w.startsWith(x.slice(0,-1)))))});if(m.length)return m.sort((a,b)=>a.n.length-b.n.length)[0]}
+  return null}
+function mkItem(n,mn,q,u,x){
+  n=String(n).trim().slice(0,80);const f=findFood(mn||n);let qq=q;
+  if(!(qq>0)){if(f){qq=f.por;u=f.u}else qq=0}
+  qq=clamp(qq,0,100000);const it={n,q:qq,u,k:0,p:0,c:0,g:0,ok:false};
+  if(f&&qq>0&&(f.u===u||(f.u!=="unid"&&u!=="unid"))){const z=qq/f.por;Object.assign(it,{k:+(f.k*z).toFixed(1),p:+(f.p*z).toFixed(1),c:+(f.c*z).toFixed(1),g:+(f.f*z).toFixed(1),ok:true,via:f.n})}
+  if(x&&x.k>0){it.k=clamp(x.k,0,20000);it.ok=true;if(x.p!=null)it.p=clamp(x.p,0,2000);if(x.c!=null)it.c=clamp(x.c,0,2000);if(x.g!=null)it.g=clamp(x.g,0,2000)}
+  return it}
+function cleanMetas(m){const o={};for(const t of["treino","descanso"]){const r=m&&m[t];if(r&&num(r.k)>0)o[t]={k:clamp(r.k,0,20000),p:clamp(r.p,0,2000),c:clamp(r.c,0,2000),g:clamp(r.g,0,2000),gasto:clamp(r.gasto,0,20000)}}return Object.keys(o).length?o:null}
+function parseTexto(tx){
+  const refs=[];let R=null;
+  for(const raw of tx.split(/\r?\n/)){
+    let l=raw.replace(/\([^)]*\d{1,2}[:h]\d{2}[^)]*\)|\b\d{1,2}[:h]\d{2}\b|\b\d{1,2}h\b/g," ").replace(/\b(\d+)\/(\d+)\b/g,(m,a,b)=>String(+a/+b)).replace(/^[\s\-•*·–—>]+/,"").replace(/[\s:–—-]+$/,"").replace(/\s+/g," ").trim();
+    if(!l||l.length>120)continue;
+    const nl=norm(l);
+    const rest=nl.replace(MEALRX,"").trim();
+    if(MEALRX.test(nl)&&rest.length<=30&&!/\bde\b/.test(rest)&&!/\d+\s*(g|ml|kg|un)\b/.test(rest)){R=refGet(refs,l);continue}
+    let k=null;const mk=l.match(/(\d+(?:[.,]\d+)?)\s*kcal/i);if(mk){k=num(mk[1]);l=l.replace(mk[0]," ").replace(/[()]/g," ").replace(/\s+/g," ").trim()}
+    let name,q=null,ru="";
+    const a=l.match(QRX),b=l.match(NRX);
+    if(a&&/^\d/.test(l)){q=num(a[1]);ru=a[2]||"";name=a[3]}
+    else if(b){q=num(b[2]);ru=b[3];name=b[1]}
+    else{name=l;if(!findFood(name)||name.length>60)continue}
+    name=name.replace(/[\s,;:–—-]+$/,"").trim();if(!name)continue;
+    const u=UN(ru,"unid");if(q!=null)q*=UNM(ru);
+    const med=ru&&u==="unid"&&!/^(un|unid|unidades?)$/i.test(ru)?" ("+ru.toLowerCase()+")":"";
+    if(!R)R=refGet(refs,"Refeição 1");
+    if(R.itens.length<60)R.itens.push(mkItem(name+med,name,q,u,k?{k}:null))}
+  return{metas:null,refs:refs.filter(r=>r.itens.length).slice(0,10)}}
+function parseCSV(tx){
+  const L=tx.replace(/^﻿/,"").split(/\r?\n/).filter(l=>l.trim()),sep=L[0].includes(";")?";":",";
+  const cell=l=>{const r=[];let c="",qt=false;for(const ch of l){if(ch==='"')qt=!qt;else if(ch===sep&&!qt){r.push(c);c=""}else c+=ch}r.push(c);return r.map(s=>s.trim())};
+  const rows=L.map(cell),h=rows[0].map(norm),has=h.some(x=>/alimento|^refeicao/.test(x));
+  let ix={ref:0,n:1,q:2,u:3,k:4,p:5,c:6,g:7};
+  if(has){const f=re=>h.findIndex(x=>re.test(x));ix={ref:f(/^refeicao/),n:f(/^(alimento|item)/),q:f(/^(qtd|quant)/),u:f(/^unid/),k:f(/^(kcal|caloria)/),p:f(/^(p|prot\w*)$/),c:f(/^(c|carb\w*)$/),g:f(/^(g|gord\w*)$/)}}
+  const refs=[],metas={};
+  for(const r of rows.slice(has?1:0)){
+    const a0=norm(r[0]);
+    if(a0==="meta"||a0==="metas"){const t=/trein/.test(norm(r[1]))?"treino":"descanso";metas[t]={k:num(r[2]),p:num(r[3]),c:num(r[4]),g:num(r[5]),gasto:num(r[6])};continue}
+    const n=r[ix.n];if(!n)continue;
+    const R=refGet(refs,(ix.ref>=0&&r[ix.ref])||"Refeição 1");
+    if(R.itens.length<60)R.itens.push(mkItem(n,null,num(r[ix.q]),UN(r[ix.u]),{k:num(r[ix.k]),p:num(r[ix.p]),c:num(r[ix.c]),g:num(r[ix.g])}))}
+  return{metas:cleanMetas(metas),refs:refs.slice(0,10)}}
+function parseJSON(tx){const j=JSON.parse(tx),refs=[];
+  for(const r of(j.refeicoes||j.refs||[]).slice(0,10)){const R=refGet(refs,String(r.nome||r.refeicao||"Refeição"));
+    for(const i of(r.itens||[]).slice(0,60)){const n=i.n||i.nome;if(!n)continue;R.itens.push(mkItem(n,null,num(i.q??i.qtd),UN(i.u||i.unid),{k:num(i.k??i.kcal),p:num(i.p),c:num(i.c),g:num(i.g)}))}}
+  return{metas:cleanMetas(j.metas),refs:refs.filter(r=>r.itens.length)}}
+function parseDoc(tx,fname){
+  tx=tx.replace(/^﻿/,"").trim();
+  if(tx[0]==="{")return parseJSON(tx);
+  const first=norm(tx.split(/\r?\n/)[0]);
+  if(/\.csv$/i.test(fname||"")||/alimento/.test(first)||/^metas? /.test(first))return parseCSV(tx);
+  return parseTexto(tx)}
+let pimp=null;
+function pimpFrom(tx,fonte,fname){
+  let r;try{r=parseDoc(tx.slice(0,200000),fname)}catch(e){return toast("Não consegui ler o arquivo")}
+  if(!r.refs.length&&!r.metas)return toast("Não encontrei refeições nem metas nesse texto");
+  pimp={fonte,metas:r.metas,refs:r.refs};view="planoimp";render()}
+const itemTxt=i=>`${fmt(i.q)} ${un(i.u)} · ${fmt(i.k)} kcal · P ${fmt(i.p,1)} C ${fmt(i.c,1)} G ${fmt(i.g,1)}`;
+function vPlano(){
+  const d=S.dieta,mt=(d&&d.metas)||{},T=mt.treino||{},R=mt.descanso||{};
+  const f=(id,v,l)=>field(id,l,v?String(v):"","",'inputmode="decimal"');
+  const refs=d&&d.refs&&d.refs.length?d.refs.map((r,ri)=>`<div class="lbl">${esc(r.nome)} · ${fmt(r.itens.reduce((a,i)=>a+i.k,0))} kcal</div><div class="card flush">${r.itens.map((i,ii)=>`<div class="dq"><span class="n">${esc(i.n)}<br><small class="mu">${itemTxt(i)}</small></span><button data-a="planRm" data-r="${ri}" data-i="${ii}" aria-label="Remover">✕</button></div>`).join("")}</div>`).join(""):'<p class="mu" style="font-size:13px">Nenhuma refeição do plano ainda. Importe o plano abaixo.</p>';
+  return page(`<h1>Plano alimentar</h1><p class="mu" style="margin:4px 0 16px;font-size:13px">${d?`Origem: ${esc(d.fonte||"manual")}. As metas abaixo substituem o cálculo automático.`:"Traga o plano do seu nutricionista: metas do dia e refeições com as quantidades."}</p>
+  <div class="lbl" style="margin-top:0">Metas do dia</div><div class="card"><div class="mu" style="font-size:12px;margin-bottom:6px">Dia de treino</div><div class="grid2">${f("pm_tk",T.k,"Kcal")}${f("pm_tp",T.p,"Proteína (g)")}${f("pm_tc",T.c,"Carbo (g)")}${f("pm_tg",T.g,"Gordura (g)")}</div>
+  <div class="mu" style="font-size:12px;margin:14px 0 6px">Dia de descanso</div><div class="grid2">${f("pm_rk",R.k,"Kcal")}${f("pm_rp",R.p,"Proteína (g)")}${f("pm_rc",R.c,"Carbo (g)")}${f("pm_rg",R.g,"Gordura (g)")}</div>
+  <button class="btn" style="margin-top:14px" data-a="saveMetas">Salvar metas</button></div>
+  ${refs}
+  <div class="lbl">Importar o plano</div><div class="card"><p class="mu" style="font-size:13px;margin:0 0 10px">Envie o arquivo (CSV, TXT ou JSON) ou cole o texto do plano. De PDF ou Word, copie o texto e cole abaixo. As calorias vêm da sua tabela de alimentos quando não estiverem no arquivo.</p>
+  <label class="btn ghost" style="display:block;text-align:center;cursor:pointer">Escolher arquivo<input type="file" id="pl_file" accept=".csv,.txt,.json,.md,text/*" hidden></label>
+  <textarea id="pl_txt" rows="7" placeholder="Café da manhã&#10;2 ovos&#10;50 g de aveia&#10;&#10;Almoço&#10;150 g de arroz branco cozido&#10;120 g de frango grelhado" style="margin-top:10px"></textarea>
+  <button class="btn" style="margin-top:10px" data-a="planRead">Ler texto colado</button><button class="lk" data-a="planModelo" style="display:block;margin:10px auto 0">Baixar modelo CSV</button></div>
+  ${d?`<button class="lk" data-a="planClear" style="display:block;margin:6px auto"><span class="bad">Remover plano alimentar</span></button>`:""}`,{back:"ajustes"});
+}
+function vPlanoImp(){
+  const p=pimp;if(!p){view="plano";return vPlano()}
+  const n=p.refs.reduce((a,r)=>a+r.itens.length,0),fx=p.refs.reduce((a,r)=>a+r.itens.filter(i=>!i.ok).length,0),m=p.metas||{};
+  const mc=t=>m[t]?`<div class="calc"><span>${t==="treino"?"Dia de treino":"Dia de descanso"}</span><b>${fmt(m[t].k)} kcal · P ${fmt(m[t].p)} C ${fmt(m[t].c)} G ${fmt(m[t].g)}</b></div>`:"";
+  return page(`<h1>Conferir plano</h1><p class="mu" style="margin:4px 0 12px;font-size:13px">${n} ${n===1?"item":"itens"} em ${p.refs.length} ${p.refs.length===1?"refeição":"refeições"}${p.metas?" e metas do dia":""}.${fx?` <b class="bad">${fx} sem calorias</b>: toque em ⚠ para informar.`:""}</p>
+  ${p.metas?`<div class="card">${mc("treino")}${mc("descanso")}</div>`:""}
+  ${p.refs.map((r,ri)=>`<div class="lbl">${esc(r.nome)} · ${fmt(r.itens.reduce((a,i)=>a+i.k,0))} kcal</div><div class="card flush">${r.itens.map((i,ii)=>`<div class="dq"><span class="n">${esc(i.n)}<br><small class="${i.ok?"mu":"bad"}">${i.ok?itemTxt(i)+(i.via?" · ≈ "+esc(i.via):""):fmt(i.q)+" "+un(i.u)+" · sem calorias"}</small></span>${i.ok?"":`<button data-a="impFix" data-r="${ri}" data-i="${ii}" aria-label="Informar calorias">⚠</button>`}<button data-a="impRm" data-r="${ri}" data-i="${ii}" aria-label="Remover">✕</button></div>`).join("")}</div>`).join("")}
+  <button class="btn" style="margin-top:14px" data-a="planUse">Usar este plano</button><button class="btn ghost" style="margin-top:8px" data-a="planCancel">Cancelar</button>`,{back:"plano"})}
 const A={
   localOnly:()=>{S.localOnly=true;save();view="hoje";render()},
+  saveMetas:()=>{const g=id=>num($("#"+id).value),old=(S.dieta&&S.dieta.metas)||{};
+    const mk=(t,key)=>{const k=g("pm_"+t+"k");return k>0?{k,p:g("pm_"+t+"p")||0,c:g("pm_"+t+"c")||0,g:g("pm_"+t+"g")||0,gasto:(old[key]||{}).gasto||0}:null};
+    const m={};const T=mk("t","treino"),R=mk("r","descanso");if(T)m.treino=T;if(R)m.descanso=R;
+    const bad=Object.values(m).some(x=>x.k>20000||x.p>2000||x.c>2000||x.g>2000||x.k<300);if(bad)return toast("Confira os valores das metas");
+    S.dieta={fonte:"manual",refs:[],...(S.dieta||{}),em:nowISO(),metas:Object.keys(m).length?m:null};save();queueState();toast("Metas salvas");render()},
+  planRead:()=>{const tx=$("#pl_txt").value;if(tx.trim().length<3)return toast("Cole o texto do plano");pimpFrom(tx,"texto colado")},
+  planModelo:()=>{const csv="﻿Refeição;Alimento;Qtd;Unid;Kcal;P;C;G\nCafé da manhã;Ovo cozido;2;unid;;;;\nCafé da manhã;Aveia em flocos;40;g;;;;\nAlmoço;Arroz branco cozido;150;g;;;;\nAlmoço;Peito de frango grelhado;120;g;198;37;0;4\nMeta;Treino;2800;180;320;70\nMeta;Descanso;2400;170;250;65\n";
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="modelo-plano-alimentar.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},
+  planRm:d=>{const r=S.dieta.refs[+d.r];r.itens.splice(+d.i,1);S.dieta.refs=S.dieta.refs.filter(x=>x.itens.length);save();queueState();render()},
+  planClear:()=>{if(confirm("Remover o plano alimentar? As metas voltam a ser calculadas pelo app.")){S.dieta=null;save();queueState();render()}},
+  impRm:d=>{pimp.refs[+d.r].itens.splice(+d.i,1);pimp.refs=pimp.refs.filter(x=>x.itens.length);render()},
+  impFix:d=>{const it=pimp.refs[+d.r].itens[+d.i],k=num(prompt("Calorias totais de “"+it.n+"” ("+fmt(it.q)+" "+un(it.u)+")"));if(k==null||k<=0||k>20000)return;
+    it.k=k;it.p=num(prompt("Proteína (g) no total",0))||0;it.c=num(prompt("Carboidrato (g) no total",0))||0;it.g=num(prompt("Gordura (g) no total",0))||0;it.ok=true;render()},
+  planCancel:()=>{pimp=null;go("plano")},
+  planUse:()=>{const p=pimp;if(!p)return;const refs=p.refs.filter(r=>r.itens.length).map(r=>({nome:r.nome,itens:r.itens.map(({n,q,u,k,p,c,g})=>({n,q,u,k,p,c,g}))})),old=S.dieta||{};
+    if(!refs.length&&!p.metas)return toast("Nada para importar");
+    S.dieta={fonte:p.fonte,em:nowISO(),metas:p.metas||old.metas||null,refs:refs.length?refs:(old.refs||[])};
+    S.dieta.refs.forEach((r,i)=>{if(i>=S.settings.meals.length&&S.settings.meals.length<8)S.settings.meals.push(r.nome)});
+    pimp=null;save();queueState();toast("Plano salvo");go("plano")},
+  addPlan:d=>{const r=S.dieta&&S.dieta.refs[meal],it=r&&r.itens[+d.i];if(!it)return;draft.push({f:{n:it.n,u:it.u,por:it.q||1,k:it.k,p:it.p,c:it.c,f:it.g},q:it.q||1});render()},
+  planAll:()=>{const r=S.dieta&&S.dieta.refs[meal];if(!r)return;r.itens.forEach(it=>draft.push({f:{n:it.n,u:it.u,por:it.q||1,k:it.k,p:it.p,c:it.c,f:it.g},q:it.q||1}));render()},
+  saveGasto:()=>{const raw=$("#gw").value.trim(),D=day(cur);
+    if(!raw){D.gasto=null}else{const v=num(raw);if(!(v>=500&&v<20000))return toast("Gasto inválido (entre 500 e 20000 kcal)");D.gasto=Math.round(v)}
+    queue("days",{date:cur,...D});toast(D.gasto?"Gasto do dia salvo":"Voltou a usar o gasto estimado");render()},
   pick:d=>{if(d.d<=today()){cur=d.d;render()}},
   runImport:async()=>{const url=$("#i_url").value.trim(),tok=$("#i_tok").value.trim(),msg=$("#i_msg"),btn=$("#i_go");
     if(!/^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+\/|macros\/)s\/[\w-]+\/exec$/.test(url)||!tok)return toast("Confira o endereço e o token");
@@ -307,6 +438,7 @@ document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.di!==undefined){const v=num(t.value);if(v>0&&v<=100000)draft[+t.dataset.di].q=v;render()}
+  if(t.id==="pl_file"&&t.files[0]){const f=t.files[0];if(f.size>2e6)return toast("Arquivo grande demais");f.text().then(tx=>pimpFrom(tx,"documento: "+f.name.slice(0,40),f.name));t.value=""}
   if(t.id==="csv"&&t.files[0]){const f=t.files[0];if(f.size>2e6)return toast("Arquivo grande demais");f.text().then(tx=>{
     const sep=tx.split("\n")[0].includes(";")?";":",",L=tx.replace(/^\ufeff/,"").split(/\r?\n/).slice(1);let n=0;
     L.forEach(l=>{const c=l.split(sep).map(s=>s.replace(/^"|"$/g,"").trim());if(!c[0])return;const u=/unid/i.test(c[2])?"unid":/ml/i.test(c[2])?"ml":"g";const o={n:c[0].slice(0,80),g:(c[1]||"Meus alimentos").slice(0,40),u,por:num(c[3])||100,k:num(c[4])||0,p:num(c[5])||0,c:num(c[6])||0,f:num(c[7])||0};if(o.k<=0||o.k>20000)return;S.customFoods=S.customFoods.filter(x=>x.n!==o.n);S.customFoods.push(o);n++});
