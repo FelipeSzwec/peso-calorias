@@ -24,7 +24,8 @@ Na aba **Alimentos**: Arquivo > Fazer download > CSV. No app: Ajustes > Importar
 Em Ajustes > Plano alimentar. As metas do plano (kcal, proteína, carbo e gordura, para dia de treino e de descanso) substituem o cálculo automático em todo o app. Sem plano, o app continua calculando a meta.
 - **Importar o plano**: envie um arquivo (CSV, TXT ou JSON) ou cole o texto. De PDF ou Word, copie o texto e cole. Antes de salvar há uma tela de conferência; itens sem calorias são marcados com ⚠ e podem ser preenchidos ou removidos.
 - **Texto livre**: uma linha com o nome da refeição (Café da manhã, Almoço, 1ª refeição...) e, abaixo, os itens (`150 g de arroz`, `2 ovos`, `Frango 120 g`). Calorias e macros vêm da tabela de alimentos; se a linha tiver `198 kcal`, esse valor vale.
-- **CSV**: use "Baixar modelo CSV". Colunas `Refeição;Alimento;Qtd;Unid;Kcal;P;C;G` (kcal e macros em branco são buscados na tabela). Linhas `Meta;Treino;kcal;P;C;G` e `Meta;Descanso;...` definem as metas do dia.
+- **CSV**: use "Baixar modelo CSV". Colunas `Dia;Refeição;Alimento;Qtd;Unid;Kcal;P;C;G` (kcal e macros em branco são buscados na tabela). `Dia` pode ser Treino, Descanso ou vazio (vale para os dois), então as quantidades podem mudar entre dia de treino e de descanso. Linhas `Meta;Treino;kcal;P;C;G;gasto` e `Meta;Descanso;...` definem as metas do dia.
+- Ao salvar, o app oferece usar os nomes das refeições do plano (por exemplo Almoço, Refeição da tarde, Jantar); lançamentos antigos passam para a refeição da mesma posição.
 - **Lançar**: na tela Lançar, a refeição escolhida mostra os itens do plano com a quantidade prescrita; é possível lançar item a item ou tudo de uma vez.
 - **Importar do app antigo** também traz a aba Metas e o grupo "Plano alimentar" da planilha.
 
