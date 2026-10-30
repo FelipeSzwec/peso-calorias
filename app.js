@@ -21,7 +21,7 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("
 const rowKey=(t,r)=>t==="days"?r.date:t==="user_state"?"s":r.id;
 function queue(t,row,quiet){const k=rowKey(t,row);S.outbox=S.outbox.filter(o=>!(o.t===t&&o.k===k));S.outbox.push({t,k,row});if(!quiet){save();Cloud.sync()}}
 const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods}};
-const queueState=()=>queue("user_state",stateRow());
+const queueState=()=>{if(S.profile)queue("user_state",stateRow())};
 
 /* ---------- Nuvem (Supabase: login + RLS) ---------- */
 const stat={ok:false,t:"Neste aparelho"};
@@ -97,8 +97,8 @@ function parseQ(t){const m=t.trim().match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|un\w*
 
 /* ---------- Navegação e estado de tela ---------- */
 const today=()=>iso(new Date());
-const needLogin=()=>S.onboarded&&Cloud.on()&&!S.session&&!S.localOnly;
-let view=S.onboarded?(needLogin()?"login":"hoje"):"onb",cur=today(),meal=0,draft=[],rng=1,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
+const needLogin=()=>Cloud.on()&&!S.session&&!S.localOnly;
+let view=needLogin()?"login":S.onboarded?"hoje":"onb",cur=today(),meal=0,draft=[],rng=1,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
 let ob={step:0,goal:0,sexo:"m",nome:"",idade:"",alt:"",peso:"",email:"",pw:""};
 const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes",cad:"ajustes",conta:"ajustes",setpin:"ajustes"};
 const go=v=>{view=v;pinBuf="";render()};
@@ -116,7 +116,7 @@ function vOnb(){
   else if(s===1)body=`<div class="hero" style="font-size:30px">Conte um pouco sobre você</div><p class="mu">Usamos esses dados só para calcular o seu gasto calórico.</p><div class="grid2">${field("o_nome","Nome",ob.nome,"Como quer ser chamado",'maxlength="30" autocomplete="given-name"').replace('class="fld"','class="fld" style="grid-column:1/-1"')}${field("o_idade","Idade",ob.idade,"anos",'inputmode="numeric"')}${field("o_alt","Altura (cm)",ob.alt,"",'inputmode="numeric"')}${field("o_peso","Peso (kg)",ob.peso,"",'inputmode="decimal"')}<div class="fld"><label>Sexo</label><div class="seg"><button data-a="sexo" data-s="m" class="${ob.sexo==="m"?"on":""}">M</button><button data-a="sexo" data-s="f" class="${ob.sexo==="f"?"on":""}">F</button></div></div></div>`;
   else body=`<div class="hero" style="font-size:30px">Proteja seus dados</div><p class="mu">${Cloud.on()?"Crie uma conta para guardar tudo na nuvem e defina um PIN para abrir o app.":"A nuvem não está configurada: os dados ficam só neste aparelho. Defina um PIN para abrir o app."}</p>${Cloud.on()?`${field("o_email","E-mail",ob.email,"voce@email.com",'type="email" autocomplete="email" autocapitalize="off"')}<div style="height:10px"></div>${field("o_pw","Senha (mín. 8 caracteres)",ob.pw,"",'type="password" autocomplete="new-password"')}`:""}<div class="lbl">PIN de 4 dígitos</div>${pad()}`;
   const last=s===2;
-  return `<div class="scroll" style="display:flex;flex-direction:column"><div class="steps">${[0,1,2].map(i=>`<i class="${i<=s?"on":""}"></i>`).join("")}</div><div style="flex:1">${body}</div><button class="btn" style="margin-top:20px" data-a="obNext">${last?(Cloud.on()?"Criar conta e entrar":"Começar"):"Continuar"}</button>${last&&Cloud.on()?`<button class="lk" data-a="obLocal">Usar só neste aparelho</button>`:s>0?`<button class="lk" data-a="obBack">Voltar</button>`:""}</div>`;
+  return `<div class="scroll" style="display:flex;flex-direction:column"><div class="steps">${[0,1,2].map(i=>`<i class="${i<=s?"on":""}"></i>`).join("")}</div><div style="flex:1">${body}</div><button class="btn" style="margin-top:20px" data-a="obNext">${last?(Cloud.on()?"Criar conta e entrar":"Começar"):"Continuar"}</button>${last&&Cloud.on()?`<button class="lk" data-a="obLocal">Usar só neste aparelho</button>`:s>0?`<button class="lk" data-a="obBack">Voltar</button>`:Cloud.on()?`<button class="lk" data-a="toLogin">Já tenho conta</button>`:""}</div>`;
 }
 function vLock(){return `<div class="lock"><div class="logo" style="margin:0 auto 18px">P</div><h1>Digite seu PIN</h1><p class="mu" id="lockMsg">${Date.now()<blockedUntil?"Muitas tentativas. Aguarde um pouco.":"&nbsp;"}</p>${pad()}</div>`}
 function vHoje(){
@@ -186,7 +186,7 @@ function vCad(){
 function vConta(){
   return page(`<h1>Conta</h1>${S.session?`<div class="card"><div class="mu" style="font-size:12px">Conectado como</div><b>${esc(S.session.email)}</b></div><button class="btn ghost" data-a="syncNow">Sincronizar agora</button><button class="lk" data-a="logout" style="display:block;margin:10px auto 0">Sair da conta</button>`:Cloud.on()?`<p class="mu">Entre para sincronizar seus dados entre aparelhos.</p>${field("a_email","E-mail","","voce@email.com",'type="email" autocomplete="email" autocapitalize="off"')}<div style="height:10px"></div>${field("a_pw","Senha (mín. 8 caracteres)","","",'type="password" autocomplete="current-password"')}<div style="height:14px"></div><button class="btn" data-a="login">Entrar</button><button class="btn ghost" style="margin-top:8px" data-a="signup">Criar conta</button>`:`<p class="mu">A nuvem não está configurada. Preencha <b>config.js</b> com os dados do Supabase (veja o README).</p>`}`,{back:"ajustes"});
 }
-function vLogin(){return `<div class="scroll" style="display:flex;flex-direction:column;justify-content:center"><div class="logo">P</div><div class="hero">Entre na sua conta</div><p class="mu">Seus dados ficam guardados na nuvem e protegidos por login.</p>${field("a_email","E-mail","","voce@email.com",'type="email" autocomplete="email" autocapitalize="off"')}<div style="height:10px"></div>${field("a_pw","Senha","","",'type="password" autocomplete="current-password"')}<div style="height:16px"></div><button class="btn" data-a="login">Entrar</button><button class="lk" data-a="localOnly">Continuar só neste aparelho</button></div>`}
+function vLogin(){return `<div class="scroll" style="display:flex;flex-direction:column;justify-content:center"><div class="logo">P</div><div class="hero">Entre na sua conta</div><p class="mu">Seus dados ficam guardados na nuvem e protegidos por login.</p>${field("a_email","E-mail","","voce@email.com",'type="email" autocomplete="email" autocapitalize="off"')}<div style="height:10px"></div>${field("a_pw","Senha","","",'type="password" autocomplete="current-password"')}<div style="height:16px"></div><button class="btn" data-a="login">Entrar</button><button class="btn ghost" style="margin-top:8px" data-a="firstTime">Primeira vez? Criar conta</button><button class="lk" data-a="localOnly">Continuar só neste aparelho</button></div>`}
 function vImport(){return page(`<h1>Importar do app antigo</h1><p class="mu" style="font-size:13px;margin:4px 0 16px">Cole o endereço do script (termina em /exec) e o token que estão em Ajustes do app antigo. Lançamentos, peso, treinos e alimentos são copiados. Rodar de novo não duplica.</p>${field("i_url","Endereço do script","","https://script.google.com/macros/s/.../exec",'autocapitalize="off" autocomplete="off"')}<div style="height:10px"></div>${field("i_tok","Token","","",'type="password" autocomplete="off"')}<div style="height:14px"></div><button class="btn" id="i_go" data-a="runImport">Importar</button><p class="mu" id="i_msg" style="margin-top:12px;font-size:13px"></p>`,{back:"ajustes"})}
 function vSetPin(){return page(`<h1>Novo PIN</h1><p class="mu">Digite 4 dígitos.</p>${pad()}`,{back:"ajustes"})}
 function vAjustes(){
@@ -196,7 +196,7 @@ function vAjustes(){
   return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes de refeição","Avisos às 12:30 e 19:00 com o app aberto")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
   <div class="lbl">Metas</div><div class="card flush">${lk("go","calc","Calculadora de gasto",c?fmt(metaFor("Descanso").k)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("go","hist","Histórico")}${lk("go","import","Importar do app antigo")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
-  <p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · versão 2.1</p>`);
+  <p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · versão 2.2</p>`);
 }
 
 function render(){
@@ -290,7 +290,8 @@ const A={
   tgPin:()=>{if(S.settings.pinHash){if(confirm("Desativar o bloqueio por PIN?")){S.settings.pinHash=S.settings.pinSalt=null;save();render()}}else go("setpin")},
   tgLem:async()=>{const on=!S.settings.lembrete;if(on){if(!("Notification" in window)||(await Notification.requestPermission())!=="granted")return toast("Permita notificações nas configurações do navegador")}S.settings.lembrete=on;save();queueState();remind();render()},
   tgWifi:()=>{S.settings.wifi=!S.settings.wifi;save();queueState();render()},
-  login:async()=>{try{if(await Cloud.signIn($("#a_email").value.trim(),$("#a_pw").value)){Cloud.queueAll();toast("Conectado");view="hoje";render()}}catch(e){toast(e.message)}},
+  login:async()=>{try{const had=S.onboarded;if(await Cloud.signIn($("#a_email").value.trim(),$("#a_pw").value)){toast("Entrando...");if(had)Cloud.queueAll();S.last=null;await Cloud.sync();view=S.onboarded?"hoje":"onb";render()}}catch(e){toast(e.message)}},
+  firstTime:()=>{ob.step=0;view="onb";render()},toLogin:()=>{view="login";render()},
   signup:async()=>{try{toast(await Cloud.signUp($("#a_email").value.trim(),$("#a_pw").value)?"Conta criada":"Confirme o e-mail que enviamos");if(S.session){Cloud.queueAll();view="hoje"}render()}catch(e){toast(e.message)}},
   logout:()=>{S.session=null;S.last=null;save();setStat(false,"Neste aparelho");render()},
   syncNow:async()=>{toast("Sincronizando...");await Cloud.sync();toast(stat.t)},
