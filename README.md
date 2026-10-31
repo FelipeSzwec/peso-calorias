@@ -13,7 +13,8 @@ Tudo o que o usuário cadastra (incluindo finanças e meta automática) sincroni
 
 ## Metas de calorias e macros
 - Sem plano alimentar importado, o app **não sugere quanto comer**: mostra o que foi ingerido e compara com o gasto do dia.
-- Com plano da nutricionista, a meta é a do plano. Toda semana o app olha o peso médio e, se o gasto mudou 60 kcal ou mais, pergunta se o usuário quer manter o plano ou atualizar (a atualização soma a diferença de gasto e preserva o déficit/superávit do plano; dá para voltar às metas originais).
+- Com plano da nutricionista, a meta é a do plano, a menos que o usuário ligue a meta automática (Ajustes > Meta automática, botão sempre visível): aí a automática vale no lugar do plano, que continua guardado. O app nunca mistura as duas.
+- Com o plano valendo, toda semana o app olha o peso médio e, se o gasto mudou 60 kcal ou mais, pergunta se o usuário quer manter o plano ou atualizar (a atualização soma a diferença de gasto e preserva o déficit/superávit do plano; dá para voltar às metas originais).
 - **Meta automática** (opcional, Ajustes > Meta automática): gasto pela fórmula de Mifflin-St Jeor com o peso médio de 7 dias, calibrado pelo gasto real quando há 3 semanas de refeições e pesagens (7.700 kcal por kg), mais ou menos um ajuste pelo objetivo e ritmo, com piso na taxa metabólica basal. Revisão semanal com confirmação. É uma estimativa e não substitui orientação profissional.
 
 ## Arquivos
