@@ -1,9 +1,23 @@
-# Peso e Calorias · versão 2 (PWA)
+# Meu app · versão 3 (PWA)
 
 Visual da direção 1a (verde-menta, escuro). Funciona offline; com Supabase configurado, sincroniza entre aparelhos com login.
 
+## Módulos
+Tela inicial com um resumo de cada módulo:
+- **Nutrição**: calorias e macros do dia (anel), refeições editáveis, lançamento de alimentos e histórico.
+- **Treino**: tipo do dia, treino do dia, gasto (Apple Watch ou estimativa), balanço do dia e da semana, plano de gasto.
+- **Finanças**: resumo do mês, contas (parcelas, recorrentes, Sophia, entradas, variáveis) e plano de poupança para a viagem. Código em `fin.js`.
+- **Histórico**: calorias, macros e peso num relatório só (7 a 90 dias). O peso pode ser registrado a qualquer data, com frequência livre, diária, semanal ou mensal.
+
+Tudo o que o usuário cadastra (incluindo finanças e meta automática) sincroniza no mesmo registro `user_state`; não há tabela nova. Para trazer o Controle Financeiro antigo: Ajustes > Importar finanças (JSON).
+
+## Metas de calorias e macros
+- Sem plano alimentar importado, o app **não sugere quanto comer**: mostra o que foi ingerido e compara com o gasto do dia.
+- Com plano da nutricionista, a meta é a do plano. Toda semana o app olha o peso médio e, se o gasto mudou 60 kcal ou mais, pergunta se o usuário quer manter o plano ou atualizar (a atualização soma a diferença de gasto e preserva o déficit/superávit do plano; dá para voltar às metas originais).
+- **Meta automática** (opcional, Ajustes > Meta automática): gasto pela fórmula de Mifflin-St Jeor com o peso médio de 7 dias, calibrado pelo gasto real quando há 3 semanas de refeições e pesagens (7.700 kcal por kg), mais ou menos um ajuste pelo objetivo e ritmo, com piso na taxa metabólica basal. Revisão semanal com confirmação. É uma estimativa e não substitui orientação profissional.
+
 ## Arquivos
-- `index.html`, `app.css`, `app.js`: o app (sem build, sem dependências)
+- `index.html`, `app.css`, `app.js`, `fin.js`: o app (sem build, sem dependências)
 - `config.js`: URL e chave pública do Supabase
 - `foods.json`: ~40 alimentos de exemplo (valores aproximados)
 - `sw.js`, `manifest.json`, ícones: instalação e uso offline
