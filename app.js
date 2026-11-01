@@ -385,7 +385,7 @@ function vAjustes(){
   const tg=(a,on,n,s)=>`<button class="row" data-a="${a}"><span class="n"><b>${n}</b><small>${s}</small></span><span class="tg ${on?"on":""}"></span></button>`;
   const lk=(a,v,n,r="›")=>`<button class="row" data-a="${a}" data-v="${v||""}"><span class="n">${n}</span><span class="mu">${r}</span></button>`;
   const c=calcGasto();
-  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes de refeição","Avisos às 12:30 e 19:00 com o app aberto")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
+  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes e avisos",S.settings.lembrete&&S.settings.pushOn?"Refeições (12:30 e 19:00), peso e check-up, mesmo com o app fechado":"Refeições às 12:30 e 19:00 com o app aberto; entre na conta para avisos com o app fechado")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
   <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","auto","Meta automática",hasPlan()?"plano manda ›":S.auto.on?"automática ligada ›":"desligada ›")}${lk("go","calc","Calculadora de gasto",c?fmt(c.rest)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
   ${devOn?`<div class="lbl">Ferramentas avançadas</div><div class="card flush">${lk("go","import","Importar do app antigo")}${lk("go","finimp","Importar finanças (JSON)")}</div>`:""}<p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · <span data-a="verTap">versão 3.0</span></p>`,{back:"inicio"});
@@ -771,7 +771,10 @@ const A={
   saveCad:()=>{const p={...S.profile,nome:$("#c_nome").value.trim().slice(0,30),idade:num($("#c_idade").value),alt:num($("#c_alt").value),peso:num($("#c_peso").value)};
     if(!p.nome||!(p.idade>=10)||!(p.alt>=100)||!(p.peso>=30))return toast("Confira os campos");if(p.peso!==S.profile.peso){const D=day(today());D.peso=p.peso;queue("days",{date:today(),...D},true)}S.profile=p;save();queueState();toast("Cadastro salvo");go("ajustes")},
   tgPin:()=>{if(S.settings.pinHash){if(confirm("Desativar o bloqueio por PIN?")){S.settings.pinHash=S.settings.pinSalt=null;save();render()}}else go("setpin")},
-  tgLem:async()=>{const on=!S.settings.lembrete;if(on){if(!("Notification" in window)||(await Notification.requestPermission())!=="granted")return toast("Permita notificações nas configurações do navegador")}S.settings.lembrete=on;save();queueState();remind();render()},
+  tgLem:async()=>{const on=!S.settings.lembrete;if(on){if(!("Notification" in window)||(await Notification.requestPermission())!=="granted")return toast("Permita notificações nas configurações do navegador");
+      if(pushOk()){try{await pushOn();S.settings.pushOn=true}catch(e){S.settings.pushOn=false;toast("Avisos com o app fechado indisponíveis agora")}}}
+    else{S.settings.pushOn=false;await pushOff()}
+    S.settings.lembrete=on;save();queueState();remind();render()},
   tgWifi:()=>{S.settings.wifi=!S.settings.wifi;save();queueState();render()},
   login:async()=>{try{const had=S.onboarded;if(await Cloud.signIn($("#a_email").value.trim(),$("#a_pw").value)){toast("Entrando...");if(had)Cloud.queueAll();S.last=null;await Cloud.sync();view=S.onboarded?"inicio":"onb";render()}}catch(e){toast(e.message)}},
   firstTime:()=>{ob.step=0;view="onb";render()},toLogin:()=>{view="login";render()},
@@ -825,7 +828,16 @@ window.addEventListener("online",()=>Cloud.sync());
 
 /* ---------- Lembretes (só disparam com o app aberto; push em segundo plano exige servidor) ---------- */
 let rt;
-function remind(){clearTimeout(rt);if(!S.settings.lembrete||!("Notification" in window)||Notification.permission!=="granted")return;
+const b64u=b=>{const p="=".repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(r,c=>c.charCodeAt(0))};
+const pushOk=()=>!!(CFG.vapidPublicKey&&Cloud.on()&&S.session&&"PushManager" in window&&"serviceWorker" in navigator);
+async function pushOn(){
+  const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(CFG.vapidPublicKey)});
+  const j=sub.toJSON();
+  await Cloud.rest("POST","push_subs?on_conflict=endpoint",{endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,tz:Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Sao_Paulo"},{Prefer:"resolution=merge-duplicates,return=minimal"})}
+async function pushOff(){
+  try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub){await Cloud.rest("DELETE","push_subs?endpoint=eq."+encodeURIComponent(sub.endpoint)).catch(()=>{});await sub.unsubscribe()}}catch(e){}}
+function remind(){clearTimeout(rt);if(S.settings.pushOn||!S.settings.lembrete||!("Notification" in window)||Notification.permission!=="granted")return;
   const n=new Date(),next=[[12,30],[19,0]].map(([h,m])=>{const d=new Date();d.setHours(h,m,0,0);if(d<=n)d.setDate(d.getDate()+1);return d}).sort((a,b)=>a-b)[0];
   rt=setTimeout(async()=>{const r=await navigator.serviceWorker.ready;r.showNotification("Hora de lançar sua refeição",{body:"Registre o que comeu em segundos.",icon:"icon-180.png",tag:"lembrete"});remind()},next-n)}
 
