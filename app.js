@@ -106,6 +106,7 @@ function search(q){
   return foods().map(f=>{f._n=f._n||norm(f.n);const ws=f._n.split(" ");if(!tk.every(t=>ws.some(w=>w.startsWith(t))))return null;return{f,s:Math.min(use(f),10)*.6-f.n.length/60+(f._n.startsWith(tk[0])?1:0)}}).filter(Boolean).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.f);
 }
 function parseQ(t){const m=t.trim().match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|un\w*)?\s*(?:de\s+)?(.+)$/i);if(!m)return{q:null,name:t.trim()};let q=num(m[1]);const u=(m[2]||"").toLowerCase();if(u==="kg"||u==="l")q*=1000;return{q,name:m[3]}}
+const amt=x=>x.pi!=null&&x.f.ps&&x.f.ps[x.pi]?x.f.ps[x.pi].q*(+x.q||0):(+x.q||0);
 
 /* ---------- Navegação e estado de tela ---------- */
 const today=()=>iso(new Date());
@@ -174,13 +175,13 @@ function planBox(){
   const r=planRef(meal);if(!r||!r.itens.length)return"";
   return`<div class="lbl">Seu plano · ${esc(r.nome)}</div><div class="card flush">${r.itens.map((it,i)=>`<button class="row" data-a="addPlan" data-i="${i}"><span class="n"><b>${esc(it.n)}</b><small>${fmt(it.q)} ${un(it.u)} · P ${fmt(it.p,1)} C ${fmt(it.c,1)} G ${fmt(it.g,1)}</small></span><b>${fmt(it.k)}</b></button>`).join("")}</div><button class="btn ghost" style="margin-bottom:6px" data-a="planAll">＋ Lançar tudo do plano</button>`}
 function vLancar(){
-  const ml=S.settings.meals[meal],done=ents(cur).filter(e=>e.meal===ml),t=draft.reduce((a,x)=>a+x.f.k*x.q/x.f.por,0);
+  const ml=S.settings.meals[meal],done=ents(cur).filter(e=>e.meal===ml),t=draft.reduce((a,x)=>a+x.f.k*amt(x)/x.f.por,0);
   return page(`<h1 style="margin-bottom:14px">Lançar</h1><div class="chips">${S.settings.meals.map((m,i)=>`<button data-a="meal" data-i="${i}" data-stay="1" class="${i===meal?"on":""}">${esc(m)}</button>`).join("")}</div>
   ${planBox()}
   <input id="q" value="${esc(q)}" placeholder="Buscar ou digitar “200 g de arroz”" autocomplete="off" enterkeyhint="search">
-  ${nf?`<div class="card" style="margin-top:10px"><div class="lbl" style="margin-top:0">Novo alimento · valores por 100 ${nf.u==="ml"?"ml":"g"}</div><div class="seg" style="margin-bottom:10px"><button data-a="nfUn" data-u="g" class="${nf.u==="ml"?"":"on"}">Em gramas (g)</button><button data-a="nfUn" data-u="ml" class="${nf.u==="ml"?"on":""}">Em mililitros (ml)</button></div>${field("nf_n","Nome",nf.n||"","Ex.: Pão integral",'maxlength="60"')}<div class="grid2">${field("nf_k","Calorias (kcal)",nf.k||"","",'inputmode="decimal"')}${field("nf_p","Proteína (g)",nf.p||"","",'inputmode="decimal"')}${field("nf_c","Carbo (g)",nf.c||"","",'inputmode="decimal"')}${field("nf_f","Gordura (g)",nf.f||"","",'inputmode="decimal"')}</div><div class="frow"><button class="btn" data-a="nfSave">Salvar alimento</button><button class="btn ghost" data-a="nfCancel">Cancelar</button></div></div>`:`<button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>`}
+  ${nf?`<div class="card" style="margin-top:10px"><div class="lbl" style="margin-top:0">Novo alimento · valores por 100 ${nf.u==="ml"?"ml":"g"}</div><div class="seg" style="margin-bottom:10px"><button data-a="nfUn" data-u="g" class="${nf.u==="ml"?"":"on"}">Em gramas (g)</button><button data-a="nfUn" data-u="ml" class="${nf.u==="ml"?"on":""}">Em mililitros (ml)</button></div>${field("nf_n","Nome",nf.n||"","Ex.: Pão integral",'maxlength="60"')}<div class="grid2">${field("nf_k","Calorias (kcal)",nf.k||"","",'inputmode="decimal"')}${field("nf_p","Proteína (g)",nf.p||"","",'inputmode="decimal"')}${field("nf_c","Carbo (g)",nf.c||"","",'inputmode="decimal"')}${field("nf_f","Gordura (g)",nf.f||"","",'inputmode="decimal"')}</div><div class="lbl">Porções (opcional)</div><div class="mu" style="font-size:12px;margin:0 0 8px">Ex.: Lata = 350, Garrafa = 600. O tamanho é em ${nf.u==="ml"?"ml":"g"}.</div>${[0,1,2].map(i=>`<div class="grid2" style="margin-bottom:8px">${field("nf_pn"+i,"Nome",nf["pn"+i]||"","Ex.: Lata",'maxlength="20"')}${field("nf_pq"+i,"Tamanho ("+(nf.u==="ml"?"ml":"g")+")",nf["pq"+i]||"","",'inputmode="decimal"')}</div>`).join("")}<div class="frow"><button class="btn" data-a="nfSave">Salvar alimento</button><button class="btn ghost" data-a="nfCancel">Cancelar</button></div></div>`:`<button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>`}
   ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
-  ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" placeholder="Qtd" inputmode="decimal" aria-label="Quantidade"><span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span><button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
+  ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" placeholder="Qtd" inputmode="decimal" aria-label="Quantidade">${x.f.ps&&x.f.ps.length?`<select data-dp="${i}" aria-label="Medida" style="width:auto;max-width:150px;padding:9px"><option value="">${x.f.u}</option>${x.f.ps.map((m,j)=>`<option value="${j}"${x.pi===j?" selected":""}>${esc(m.n)} (${m.q} ${x.f.u})</option>`).join("")}</select>`:`<span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span>`}<button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   <div class="lbl">${q?"Resultados":"Mais usados"}</div><div id="res">${foodList()}</div>
   ${draft.length?`<div class="sticky"><div class="in"><span>${draft.length} ${draft.length>1?"itens":"item"} · ${fmt(t)} kcal</span><button data-a="saveDraft">Salvar refeição</button></div></div>`:""}`);
 }
@@ -810,10 +811,10 @@ const A={
   day:d=>{const x=new Date(cur+"T12:00:00");x.setDate(x.getDate()+ +d.n);if(iso(x)>today())return;cur=iso(x);render()},
   tipo:d=>{const D=day(cur);D.tipo=d.t;queue("days",{date:cur,...D});render()},
   meal:(d)=>{meal=+d.i;if(!d.stay)view="lancar";render()},
-  add:d=>{const f=foods().find(x=>x.n===d.n),p=parseQ(q);draft.push({f,q:p.q&&search(q)[0]===f?p.q:""});q="";render();try{const el=document.querySelector('[data-di="'+(draft.length-1)+'"]');if(el&&!draft[draft.length-1].q)el.focus()}catch(e){}},
+  add:d=>{const f=foods().find(x=>x.n===d.n),p=parseQ(q);const usaQ=p.q&&search(q)[0]===f,tp=f.ps&&f.ps.length;draft.push({f,q:usaQ?p.q:(tp?1:""),pi:!usaQ&&tp?0:null});q="";render();try{const el=document.querySelector('[data-di="'+(draft.length-1)+'"]');if(el&&!draft[draft.length-1].q)el.focus()}catch(e){}},
   rm:d=>{draft.splice(+d.i,1);render()},
   saveDraft:()=>{const ml=S.settings.meals[meal],sem=draft.find(x=>!(x.q>0));if(sem)return toast("Informe a quantidade de "+sem.f.n);
-    draft.forEach(({f,q})=>{const z=q/f.por,e={id:uid(),date:cur,meal:ml,name:f.n,qty:q,unit:f.u,k:+(f.k*z).toFixed(1),p:+(f.p*z).toFixed(1),c:+(f.c*z).toFixed(1),g:+(f.f*z).toFixed(1),deleted:false};S.entries.push(e);S.usage[f.n]=(S.usage[f.n]||0)+1;queue("entries",e)});
+    draft.forEach(x=>{const f=x.f,q=amt(x),z=q/f.por,pm=x.pi!=null&&f.ps&&f.ps[x.pi],e={id:uid(),date:cur,meal:ml,name:pm?f.n+" ("+(Number.isInteger(+x.q)?x.q:fmt(x.q,1))+" "+pm.n.toLowerCase()+")":f.n,qty:q,unit:f.u,k:+(f.k*z).toFixed(1),p:+(f.p*z).toFixed(1),c:+(f.c*z).toFixed(1),g:+(f.f*z).toFixed(1),deleted:false};S.entries.push(e);S.usage[f.n]=(S.usage[f.n]||0)+1;queue("entries",e)});
     toast(`${ml} salva`);draft=[];view="hoje";save();render()},
   del:d=>{const e=S.entries.find(x=>x.id===d.id);if(e){e.deleted=true;queue("entries",e);render()}},
   hrng:d=>{hrng=+d.i;render()},
@@ -850,15 +851,15 @@ const A={
     if(k==null||k<0||k>1000)return toast("Informe as calorias em 100 g (0 a 1000)");
     if([p,c,f].some(v=>v<0||v>100))return toast("Macros devem ficar entre 0 e 100 g");
     if(foods().some(x=>x.n.toLowerCase()===n.toLowerCase()))return toast("Já existe um alimento com esse nome");
-    S.customFoods.push({n,g:nf.u==="ml"?"Bebidas":"Meus alimentos",u:nf.u==="ml"?"ml":"g",por:100,k,p,c,f});nf=null;q=n;save();queueState();render();toast("Alimento cadastrado")}
+    const ps=[0,1,2].map(i=>({n:(nf["pn"+i]||"").trim().slice(0,20),q:num(nf["pq"+i])})).filter(x=>x.n&&x.q>0&&x.q<=10000),nv={n,g:nf.u==="ml"?"Bebidas":"Meus alimentos",u:nf.u==="ml"?"ml":"g",por:100,k,p,c,f};if(ps.length)nv.ps=ps;S.customFoods.push(nv);nf=null;q=n;save();queueState();render();toast("Alimento cadastrado")}
 };
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
 document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
   else if(sdDraft&&/^sx_/.test(e.target.id||"")){const id=e.target.id;if(id==="sx_data")sdDraft.data=e.target.value;else if(id==="sx_lab")sdDraft.lab=e.target.value;else{const[,i,k]=id.split("_");if(sdDraft.itens[+i])sdDraft.itens[+i][k]=e.target.value}}
   else if(trDraft&&/^tx_/.test(e.target.id||"")){const id=e.target.id;if(id==="tx_nome")trDraft.nome=e.target.value;else{const[,i,k]=id.split("_");if(trDraft.ex[+i])trDraft.ex[+i][k]=e.target.value}}
-  else if(nf&&/^nf_[nkpcf]$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
-  else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*(x.q||0)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
+  else if(nf&&/^nf_([nkpcf]|p[nq]\d)$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
+  else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*amt(x)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.id==="rv_ini"){const d=t.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>today())return;S.auto.rev={em:addDias(d,-1),peso:pesoMedia(addDias(d,-7),d)||pesoTend()};save();queueState();toast("Início do acompanhamento definido");render();return}
@@ -867,6 +868,7 @@ document.addEventListener("change",e=>{
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
+  if(t.dataset.dp!==undefined){const x=draft[+t.dataset.dp];if(x){x.pi=t.value===""?null:+t.value;if(x.pi!=null&&!(x.q>0))x.q=1;render()}return}
   if(t.dataset.di!==undefined)return;
   if(t.id==="sa_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo o PDF...");
     pdfText(f).then(tx=>{if(tx.replace(/\s/g,"").length<20)return toast("Esse PDF não tem texto para ler (foto ou escaneado). Digite os valores.");
