@@ -133,15 +133,19 @@ function vOnb(){
 }
 function vLock(){return `<div class="lock"><div class="logo" style="margin:0 auto 18px">P</div><h1>Digite seu PIN</h1><p class="mu" id="lockMsg">${Date.now()<blockedUntil?"Muitas tentativas. Aguarde um pouco.":"&nbsp;"}</p>${pad()}</div>`}
 function weekTot(){const hj=today();let tk=0,tg=0,n=0;week().forEach(d=>{const k=sum(ents(d)).k,D=day(d);if(d<hj&&k>0){const g=D.gasto||metaFor(D.tipo||"Descanso").gasto;if(g){tg+=g;tk+=k;n++}}});return{tk,tg,n,res:tk-tg}}
+const tipoLbl=D=>(D.tipo||"Descanso")==="Treino"?"treino":"descanso";
 function ringCard(t,m,D){
   const g=D.gasto||m.gasto,plan=m.k>0,ref=plan?m.k:g,pct=ref?t.k/ref:0,falta=m.k-t.k,s=t.k-g,hj=cur===today(),C=2*Math.PI*50;
   const msg=plan?(falta>=0?`Faltam ${fmt(falta)} kcal`:`Passou ${fmt(-falta)} kcal`):(g?(t.k?`${hj?"Saldo parcial":"Saldo"}: ${s>0?"+":s<0?"−":""}${fmt(Math.abs(s))} kcal`:"Nenhuma refeição lançada"):"Complete o cadastro em Ajustes");
   const arc=(p,c)=>p>0?`<circle cx="60" cy="60" r="50" fill="none" stroke="${c}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${(Math.max(p,.004)*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)"/>`:"";
-  const svg=`<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="var(--ac)" stroke-opacity=".2" stroke-width="13"/>${arc(Math.min(pct,1),"var(--ac)")}${pct>1?arc(Math.min(pct-1,1),"var(--bad)"):""}</svg>`;
+  const R2=34,C2=2*Math.PI*R2,pg=g?t.k/g:0,arc2=(p,c)=>p>0?`<circle cx="60" cy="60" r="${R2}" fill="none" stroke="${c}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(Math.max(p,.004)*C2).toFixed(1)} ${C2.toFixed(1)}" transform="rotate(-90 60 60)"/>`:"";
+  const inner=plan&&g?`<circle cx="60" cy="60" r="${R2}" fill="none" stroke="var(--bad)" stroke-opacity=".2" stroke-width="11"/>${arc2(Math.min(pg,1),"var(--bad)")}${pg>1?arc2(Math.min(pg-1,1),"#ffb4a8"):""}`:"";
+  const svg=`<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="var(--ac)" stroke-opacity=".2" stroke-width="13"/>${arc(Math.min(pct,1),"var(--ac)")}${pct>1?arc(Math.min(pct-1,1),"var(--bad)"):""}${inner}</svg>`;
+  const leg=plan&&g?`<div class="mu" style="font-size:12px;margin-top:10px"><span style="color:var(--ac)">●</span> Meta ${fmt(m.k)} &nbsp; <span style="color:var(--bad)">●</span> Gasto ${tipoLbl(D)} ${fmt(g)}</div>`:"";
   const wk=weekTot(),dayLbl=hj?"Hoje":cur.slice(8)+"/"+cur.slice(5,7);
   const word=v=>v<0?"Déficit":v>0?"Superávit":"Equilíbrio";
   const blk=(titulo,ing,gas,res,parcial)=>`<div class="blk"><b>${titulo}</b><div class="br"><span>Ingeridas</span><b>${ing!=null?fmt(ing):"—"}</b></div><div class="br"><span>Gastas</span><b>${gas?fmt(gas):"—"}</b></div><div class="br"><span>${res==null?"Déficit/superávit":word(res)+(parcial?" parcial":"")}</span><b>${res==null?"—":fmt(Math.abs(res))}</b></div></div>`;
-  return `<div class="card" style="padding:22px 18px;text-align:center"><div class="ring">${svg}<div><b>${fmt(t.k)}</b><small>${ref?`de ${fmt(ref)} kcal${plan?"":" gastas"}`:"kcal ingeridas"}</small></div></div><div class="${plan?(falta<0?"bad":"good"):(!t.k||s<=0?"mu":"good")}" style="margin-top:12px;font-weight:600;font-size:14px">${msg}</div><div class="mu" style="font-size:11px;margin-top:4px">${m.plano?"Meta do seu plano alimentar":m.auto?"Meta automática: estimativa pelo seu peso e objetivo":"Sem plano alimentar importado: comparando com o gasto do dia"}</div>
+  return `<div class="card" style="padding:22px 18px;text-align:center"><div class="ring">${svg}<div><b>${fmt(t.k)}</b><small>${ref?`de ${fmt(ref)} kcal${plan?"":" gastas"}`:"kcal ingeridas"}</small></div></div>${leg}<div class="${plan?(falta<0?"bad":"good"):(!t.k||s<=0?"mu":"good")}" style="margin-top:12px;font-weight:600;font-size:14px">${msg}</div><div class="mu" style="font-size:11px;margin-top:4px">${m.plano?"Meta do seu plano alimentar":m.auto?"Meta automática: estimativa pelo seu peso e objetivo":"Sem plano alimentar importado: comparando com o gasto do dia"}</div>
   <div class="dual">${blk(dayLbl,t.k,g,t.k&&g?s:null,hj)}${blk("Semana",wk.n?wk.tk:null,wk.n?wk.tg:null,wk.n?wk.res:null,false)}</div><div class="mu" style="font-size:11px;margin-top:8px">A semana soma só os dias já fechados, sem o dia de hoje.</div></div>`;
 }
 function vHoje(){
