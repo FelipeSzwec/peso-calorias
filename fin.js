@@ -117,7 +117,7 @@ const line=(k,v,cls="")=>`<div class="fl ${cls}"><span class="mu">${k}</span><b>
 
 function vResumo(){
   const f=F(),now=NOW(),head=`<div class="top"><div><div class="mu">${MESL[now%12]} de ${Math.floor(now/12)}</div><h1>Finanças</h1></div></div>`;
-  if(empty(f))return head+`<div class="card"><b>Ainda não há dados.</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Comece lançando uma entrada na aba Contas.</p><button class="btn" data-a="go" data-v="fcontas">Ir para Contas</button></div><div class="card"><b>Já tem o arquivo financeiro.json?</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Escolha o arquivo e as suas contas entram de uma vez.</p><label class="btn ghost" style="display:block;text-align:center;cursor:pointer">Escolher arquivo<input type="file" id="fi_file" accept=".json,application/json,text/plain" hidden></label></div>`;
+  if(empty(f))return head+`<div class="card"><b>Ainda não há dados.</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Comece lançando uma entrada na aba Contas.</p><button class="btn" data-a="go" data-v="fcontas">Ir para Contas</button></div>`;
   const all=calc(f),rows=all.slice(0,12),r0=rows[0],base=Math.max(r0.ent,r0.out)||1,sel=Math.min(ui.sel,11),r=rows[sel];
   const maxAbs=Math.max(1,...rows.map(x=>Math.abs(x.saldo)));
   const ends=f.parcelas.filter(p=>endIdx(p)===r.m).map(p=>p.nome),notes=[];
@@ -158,7 +158,7 @@ function vContas(){
 
 function vViagem(){
   const f=F(),all=calc(f),t=trip(f,all),c=f.viagem||{};
-  const fields=`<div class="fld" style="margin-top:16px"><label for="t_nome">Nome do objetivo</label><input id="t_nome" type="text" maxlength="30" placeholder="Ex.: Viagem, Reserva, Carro" data-fin="nome" value="${esc(c.nome||"")}"></div><div class="grid2" style="margin-top:12px">
+  const fields=`<div class="fld" style="margin-top:16px"><label for="t_nome">Nome do objetivo</label><input id="t_nome" type="text" maxlength="30" placeholder="Ex.: Viagem, Reserva, Carro" data-fin="nome" value="${esc(c.nome||"")}"></div><div class="grid1" style="margin-top:12px">
     <div class="fld"><label for="t_ini">Começa a poupar em</label><input id="t_ini" type="month" data-fin="ini" value="${esc(c.inicio||"")}"></div>
     <div class="fld"><label for="t_teto">Teto do dia a dia (R$/mês)</label><input id="t_teto" type="number" step="50" min="0" inputmode="decimal" data-fin="teto" value="${esc(c.teto??"")}"></div>
     <div class="fld"><label for="t_mes">Mês do objetivo</label><input id="t_mes" type="month" data-fin="mes" value="${esc(c.mes||"")}"></div>
