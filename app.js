@@ -13,14 +13,14 @@ const toast=t=>{const e=$("#toast");e.textContent=t;e.classList.add("on");clearT
 
 /* ---------- Estado local (offline primeiro) ---------- */
 const KEY="pc3";
-const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],treinos:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null,rev:null}};
+const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],treinos:[],saude:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null,rev:null}};
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){S={}}
 S={...structuredClone(DEF),...S};S.settings={...DEF.settings,...S.settings,plan:{...DEF.settings.plan,...(S.settings||{}).plan}};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Sem espaço para salvar no aparelho")}};
 const rowKey=(t,r)=>t==="days"?r.date:t==="user_state"?"s":r.id;
 function queue(t,row,quiet){const k=rowKey(t,row);S.outbox=S.outbox.filter(o=>!(o.t===t&&o.k===k));S.outbox.push({t,k,row});if(!quiet){save();Cloud.sync()}}
-const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods,treinos:S.treinos,dieta:S.dieta,fin:S.fin,auto:S.auto}};
+const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods,treinos:S.treinos,saude:S.saude,dieta:S.dieta,fin:S.fin,auto:S.auto}};
 const queueState=()=>{if(S.profile)queue("user_state",stateRow())};
 
 /* ---------- Nuvem (Supabase: login + RLS) ---------- */
@@ -67,6 +67,7 @@ const Cloud={
       if(d.settings)S.settings={...S.settings,...d.settings,pinHash:S.settings.pinHash,pinSalt:S.settings.pinSalt};
       if(d.customFoods)S.customFoods=d.customFoods;
       if(Array.isArray(d.treinos))S.treinos=d.treinos;
+      if(Array.isArray(d.saude))S.saude=d.saude;
       if(d.dieta!==undefined)S.dieta=d.dieta;
       if(d.fin)S.fin=Fin.norm(d.fin);
       if(d.auto)S.auto={...S.auto,...d.auto}}
@@ -291,7 +292,7 @@ function revPlano(rev,pt,hj,previa){
   const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
   return{kind:"plano",previa,nota,dias,kw,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
 }
-let revEdit={},trDraft=null;
+let revEdit={},trDraft=null,sdDraft=null;
 function revDica(n,peso,goal){
   const pk=n.p/peso,ck=n.c/peso,gk=n.g/peso,gp=n.k>0?n.g*9/n.k*100:0,pz=S.profile&&S.profile.sexo==="f"?1200:1500,f1=v=>fmt(v,1);
   const L=(txt,ruim)=>`<div class="${ruim?"bad":"mu"}" style="font-size:12px;margin-top:4px">${txt}</div>`;
@@ -403,6 +404,58 @@ function vTreino(){
   <div class="card" style="margin-top:12px"><div class="fld"><label for="gw">Gasto do dia (Apple Watch ou outro monitor)</label><div class="row" style="border:0;padding:0"><input id="gw" inputmode="numeric" value="${D.gasto||""}" placeholder="Estimado: ${fmt(m.gasto)} kcal"><button class="btn" style="width:auto;padding:14px 20px" data-a="saveGasto">Salvar</button></div></div><div class="mu" style="font-size:12px;margin-top:8px">${D.gasto?"Usando o gasto que você informou.":"Sem valor: usando o gasto estimado pela Calculadora de gasto (aba Plano)."} Se você usa um monitor, como o Apple Watch, informe o total do dia (ativas + em repouso). Se preferir não informar, o app usa a estimativa da calculadora. Você também pode digitar aqui qualquer outro dado de gasto que tenha.</div></div>
   ${weekSummary()}`);
 }
+/* ---------- Saúde: check-ups com exames (valores e faixas), aviso de 1 ano ---------- */
+const EXAMES=[["Glicose em jejum","mg/dL",/glicose|glicemia(?! media)/],["Hemoglobina glicada (HbA1c)","%",/hemoglobina glicada|hba1c|hemoglobina glicosilada/],["Colesterol total","mg/dL",/colesterol total/],["HDL","mg/dL",/\bhdl\b/],["LDL","mg/dL",/\bldl\b/],["Triglicerídeos","mg/dL",/triglicer/],["TSH","µUI/mL",/\btsh\b/],["T4 livre","ng/dL",/t4 livre/],["Vitamina D (25-OH)","ng/mL",/vitamina d|25.?hidroxi/],["Vitamina B12","pg/mL",/vitamina b12|\bb12\b/],["Ferritina","ng/mL",/ferritina/],["Ferro sérico","µg/dL",/ferro (serico|total)|^ferro\b/],["Hemoglobina","g/dL",/hemoglobina(?! glic)/],["Hematócrito","%",/hematocrito/],["Leucócitos","/mm³",/leucocitos/],["Plaquetas","/mm³",/plaquetas/],["Creatinina","mg/dL",/creatinina/],["Ureia","mg/dL",/ureia/],["TGO (AST)","U/L",/\btgo\b|\bast\b|transaminase oxalacetica/],["TGP (ALT)","U/L",/\btgp\b|\balt\b|transaminase piruvica/],["Gama GT","U/L",/gama.?gt|gama glutamil|\bggt\b/],["Ácido úrico","mg/dL",/acido urico/],["PCR (proteína C reativa)","mg/L",/proteina c reativa|\bpcr\b/],["Testosterona total","ng/dL",/testosterona total|^testosterona\b/],["Insulina em jejum","µUI/mL",/insulina/]];
+const nrm=t=>t.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const n2=x=>{const v=parseFloat(String(x).replace(/\./g,m=>/^\d{1,3}(\.\d{3})+(,|$)/.test(x)?"":".").replace(",","."));return isNaN(v)?null:v};
+function parseExames(tx){
+  const L=tx.split("\n").map(x=>x.trim()),out=[],used=new Set();
+  for(const[nome,un,re]of EXAMES){
+    for(let i=0;i<L.length;i++){
+      if(used.has(i))continue;const ln=nrm(L[i]),mt=ln.match(re);if(!mt||mt.index>25)continue;
+      const rest=ln.slice(mt.index+mt[0].length).replace(/\(?25.?(?:oh|hidroxi\w*)\)?/g," "),mv=rest.match(/^[^\d\n]{0,45}?(\d+(?:[.,]\d+)?)/);if(!mv)continue;
+      const v=n2(mv[1]);if(v==null)continue;used.add(i);
+      const after=rest.slice(mv.index+mv[0].length),refTxt=after;
+      let mn="",mx="",r;
+      if(r=refTxt.match(/(\d+(?:[.,]\d+)?)\s*(?:a|-|–|ate)\s*(\d+(?:[.,]\d+)?)/)){mn=n2(r[1]);mx=n2(r[2]);if(mn!=null&&mx!=null&&mn>mx){mn="";mx=""}}
+      else if(r=refTxt.match(/(?:inferior a|menor que|menor ou igual a|ate|<=?)\s*(\d+(?:[.,]\d+)?)/))mx=n2(r[1]);
+      else if(r=refTxt.match(/(?:superior a|maior que|acima de|>=?)\s*(\d+(?:[.,]\d+)?)/))mn=n2(r[1]);
+      out.push({n:nome,u:un,v,min:mn,max:mx});break}}
+  return out}
+const stEx=x=>{const v=num(x.v),mn=num(x.min),mx=num(x.max);if(v==null)return"?";if(mn!=null&&v<mn)return"baixo";if(mx!=null&&v>mx)return"alto";return mn==null&&mx==null?"?":"ok"};
+const refTxt=x=>{const mn=num(x.min),mx=num(x.max);return mn!=null&&mx!=null?fmt(mn,1)+" a "+fmt(mx,1):mx!=null?"até "+fmt(mx,1):mn!=null?"acima de "+fmt(mn,1):"sem faixa"};
+const saudeOrd=()=>[...(S.saude||[])].sort((a,b)=>a.data<b.data?1:-1);
+const saudeProx=()=>{const u=saudeOrd()[0];if(!u)return null;const p=new Date(u.data+"T12:00:00");p.setFullYear(p.getFullYear()+1);const d=iso(p);return{data:d,dias:diasEntre(today(),d)}};
+const saudeAviso=()=>{const p=saudeProx();if(!p)return"";return p.dias<0?"Check-up atrasado há "+(-p.dias)+" dia(s)":p.dias<=30?"Hora de fazer o check-up: faltam "+p.dias+" dia(s)":""};
+const dmy=d=>d.slice(8)+"/"+d.slice(5,7)+"/"+d.slice(0,4);
+function vSaude(){
+  const L=saudeOrd(),u=L[0],pr=saudeProx(),av=saudeAviso();
+  const ant=L[1],sum1=c=>{const r={ok:0,fora:0};c.itens.forEach(x=>{const t=stEx(x);if(t==="ok")r.ok++;else if(t!=="?")r.fora++});return r};
+  let resumo="";
+  if(u){const r=sum1(u),fora=u.itens.filter(x=>["alto","baixo"].includes(stEx(x)));
+    resumo=`<h2>Resumo do último check-up</h2><div class="card"><div class="grid3"><div class="mini"><small>Exames</small><b>${u.itens.length}</b></div><div class="mini"><small>Dentro</small><b class="good">${r.ok}</b></div><div class="mini"><small>Fora</small><b class="${r.fora?"bad":"mu"}">${r.fora}</b></div></div>
+    ${fora.length?`<div class="lbl">Fora da faixa</div>${fora.map(x=>{const a=ant&&ant.itens.find(y=>y.n===x.n),pv=a?num(a.v):null,seta=pv==null?"":num(x.v)>pv?" ↑":num(x.v)<pv?" ↓":" =";return`<div class="mrow"><span>${esc(x.n)}<br><small class="mu">referência ${refTxt(x)} ${esc(x.u||"")}${pv!=null?" · antes "+fmt(pv,1):""}</small></span><b class="bad">${fmt(num(x.v),1)} ${esc(x.u||"")}${seta}</b></div>`}).join("")}`:`<p class="good" style="margin:12px 0 0;font-weight:600">Todos os exames com faixa estão dentro da referência.</p>`}
+    <div class="lbl">Todos os exames</div>${u.itens.map(x=>{const t=stEx(x);return`<div class="mrow"><span>${esc(x.n)}<br><small class="mu">ref. ${refTxt(x)} ${esc(x.u||"")}</small></span><b class="${t==="ok"?"good":t==="?"?"mu":"bad"}">${fmt(num(x.v),1)} ${esc(x.u||"")}${t==="alto"?" ↑":t==="baixo"?" ↓":""}</b></div>`}).join("")}</div>`}
+  return page(`<h1 style="margin-bottom:14px">Saúde</h1>
+  <div class="card">${av?`<div class="callout" style="margin:0 0 12px"><b class="${pr.dias<0?"bad":"good"}">🩺 ${av}</b></div>`:""}${u?`<div class="mrow"><span class="mu">Último check-up</span><b>${dmy(u.data)}</b></div><div class="mrow"><span class="mu">Próximo (1 ano depois)</span><b>${dmy(pr.data)}</b></div>`:`<p class="mu" style="margin:0">Nenhum check-up registrado. Envie o PDF dos seus exames ou digite os valores.</p>`}
+  <label class="btn" style="display:block;text-align:center;cursor:pointer;margin-top:14px">Enviar PDF de exames<input type="file" id="sa_file" accept=".pdf,application/pdf" hidden></label><button class="btn ghost" style="margin-top:8px" data-a="saNew">Digitar manualmente</button>
+  <div class="mu" style="font-size:12px;margin-top:10px">O app lê o texto do PDF e tenta reconhecer os exames mais comuns. Confira os valores antes de salvar. O arquivo PDF não fica guardado, só os valores. Isto não substitui a avaliação do seu médico.</div></div>
+  ${resumo}
+  ${L.length?`<h2>Check-ups</h2><div class="card flush">${L.map(c=>{const r=sum1(c);return`<button class="row" data-a="saEdit" data-id="${c.id}"><span class="n"><b>${dmy(c.data)}${c.lab?" · "+esc(c.lab):""}</b><small>${c.itens.length} exames · ${r.fora?r.fora+" fora da faixa":"dentro da faixa"}</small></span><span class="mu">›</span></button>`}).join("")}</div>`:""}`,{back:"inicio"});
+}
+function vSaudeEd(){
+  const c=sdDraft;if(!c){view="saude";return vSaude()}
+  const f=(i,k,l,v,mode)=>`<div class="fld"><label for="sx_${i}_${k}">${l}</label><input id="sx_${i}_${k}" inputmode="${mode}" value="${esc(v??"")}"></div>`;
+  return page(`<h1 style="margin-bottom:14px">${c.novo?"Novo check-up":"Editar check-up"}</h1>
+  <div class="grid2"><div class="fld"><label for="sx_data">Data do exame</label><input id="sx_data" type="date" value="${c.data}" max="${today()}"></div>${field("sx_lab","Laboratório (opcional)",c.lab||"","",'maxlength="40"')}</div>
+  <div class="mu" style="font-size:12px;margin:8px 0 0">Valor e faixa de referência vêm do seu laudo. Se não tiver faixa, deixe em branco.</div>
+  ${c.itens.map((x,i)=>{const t=stEx(x);return`<div class="card" style="margin-top:12px"><div class="rh" style="margin:0 0 8px"><b class="${t==="ok"?"good":t==="?"?"mu":"bad"}">${t==="ok"?"Dentro":t==="?"?"Sem faixa":t==="alto"?"Acima":"Abaixo"}</b><button class="lk" data-a="saExDel" data-i="${i}">Remover</button></div>
+    <div class="grid2">${f(i,"n","Exame",x.n,"text")}${f(i,"u","Unidade",x.u,"text")}</div>
+    <div class="grid3" style="margin-top:10px">${f(i,"v","Valor",x.v,"decimal")}${f(i,"min","Mínimo",x.min,"decimal")}${f(i,"max","Máximo",x.max,"decimal")}</div></div>`}).join("")}
+  <button class="btn ghost" style="margin-top:12px" data-a="saExAdd">＋ Adicionar exame</button>
+  <button class="btn" style="margin-top:12px" data-a="saSave">Salvar check-up</button>
+  ${c.novo?"":`<button class="lk" data-a="saDel" style="display:block;margin:14px auto 0"><span class="bad">Excluir este check-up</span></button>`}`,{back:"saude"});
+}
 const trTxt=x=>[x.s&&x.r?x.s+" × "+x.r:x.s?x.s+" séries":x.r?x.r+" reps":"",x.c?fmt(x.c,1)+" kg":"",x.i?x.i+" s de intervalo":""].filter(Boolean).join(" · ");
 function trLista(t){return t.ex.length?`<div class="card flush">${t.ex.map(x=>`<div class="dq"><span class="n"><b>${esc(x.n)}</b><br><small class="mu">${trTxt(x)||"sem detalhes"}</small></span></div>`).join("")}</div>`:`<p class="mu" style="font-size:13px">Sem exercícios.</p>`}
 function vTreinoEd(){
@@ -427,14 +480,14 @@ function vInicio(){
   ${ringCard(t,m,D)}
   <button class="mc" data-a="go" data-v="hoje"><div class="mh"><span class="mi">🥗</span><b>Nutrição</b><span class="mu">›</span></div>${row("Calorias hoje",m.k?fmt(t.k)+" de "+fmt(m.k)+" kcal":fmt(t.k)+" kcal")}${m.k?`<div class="bar"><i style="width:${Math.min(100,t.k/m.k*100)}%"></i></div>`:""}${row("Proteína",fmt(t.p)+(m.p?" de "+fmt(m.p):"")+" g")}${row("Peso atual",pe?fmt(pe,1)+" kg":"—")}${pesoDue()?`<div class="due">⚖ ${pesoDue()}</div>`:""}</button>
   <button class="mc" data-a="go" data-v="treino"><div class="mh"><span class="mi">🏋️</span><b>Treino</b><span class="mu">›</span></div>${row("Dia de hoje",tipo==="Treino"?"Treino":"Descanso")}${row("Treino",esc(D.treino||"—"))}${row("Gasto do dia",g?fmt(g)+" kcal":"—")}</button>
-  <button class="mc" data-a="go" data-v="fresumo"><div class="mh"><span class="mi">💰</span><b>Finanças</b><span class="mu">›</span></div>${fr?row("Saldo do mês",Fin.brl(fr.saldo),fr.saldo<0?"bad":"good")+row("Viagem",fr.viagem?Fin.brl(fr.viagem.total)+" poupados":"Configurar"):row("Saldo do mês","Configurar")}</button><div class="mc soon" aria-disabled="true"><div class="mh" style="margin:0"><span class="mi">📅</span><b>Agenda</b><span class="soonb">Em breve</span></div></div>`,{nonav:true});
+  <button class="mc" data-a="go" data-v="fresumo"><div class="mh"><span class="mi">💰</span><b>Finanças</b><span class="mu">›</span></div>${fr?row("Saldo do mês",Fin.brl(fr.saldo),fr.saldo<0?"bad":"good")+row("Viagem",fr.viagem?Fin.brl(fr.viagem.total)+" poupados":"Configurar"):row("Saldo do mês","Configurar")}</button><button class="mc" data-a="go" data-v="saude"><div class="mh"><span class="mi">🩺</span><b>Saúde</b><span class="mu">›</span></div>${(()=>{const u=saudeOrd()[0],pr=saudeProx(),av=saudeAviso();return u?row("Último check-up",dmy(u.data))+row("Próximo",dmy(pr.data),av?(pr.dias<0?"bad":"good"):"")+(av?`<div class="${pr.dias<0?"bad":"good"}" style="font-size:12px;margin-top:6px;font-weight:600">${av}</div>`:""):row("Check-up","Enviar exames")})()}</button><div class="mc soon" aria-disabled="true"><div class="mh" style="margin:0"><span class="mi">📅</span><b>Agenda</b><span class="soonb">Em breve</span></div></div>`,{nonav:true});
 }
 function render(){
   autoTick();
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -656,6 +709,16 @@ const A={
     const nm=M[i],dest=M[i?i-1:1],cnt=S.entries.filter(e=>e.meal===nm&&!e.deleted).length;
     if(cnt&&!confirm("“"+nm+"” tem "+cnt+" lançamento(s). Eles passam para “"+dest+"”. Remover a refeição?"))return;
     moveMeal(nm,dest);M.splice(i,1);if(meal>=M.length)meal=M.length-1;queueState();render()},
+  saNew:()=>{sdDraft={novo:true,id:uid(),data:today(),lab:"",itens:[{n:"",u:"",v:"",min:"",max:""}]};go("saudeed")},
+  saEdit:d=>{const c=(S.saude||[]).find(x=>x.id===d.id);if(!c)return;sdDraft=structuredClone(c);go("saudeed")},
+  saExAdd:()=>{if(sdDraft&&sdDraft.itens.length<80){sdDraft.itens.push({n:"",u:"",v:"",min:"",max:""});render()}},
+  saExDel:d=>{if(sdDraft){sdDraft.itens.splice(+d.i,1);render()}},
+  saSave:()=>{const c=sdDraft;if(!c)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||"")||c.data>today())return toast("Data inválida");
+    const itens=c.itens.filter(x=>(x.n||"").trim()&&num(x.v)!=null).map(x=>({n:x.n.trim().slice(0,60),u:(x.u||"").trim().slice(0,20),v:num(x.v),min:num(x.min)??"",max:num(x.max)??""}));
+    if(!itens.length)return toast("Informe pelo menos um exame com valor");
+    if(!S.saude)S.saude=[];const o=S.saude.find(x=>x.id===c.id),row={id:c.id,data:c.data,lab:(c.lab||"").trim().slice(0,40),itens};
+    o?Object.assign(o,row):S.saude.push(row);sdDraft=null;save();queueState();toast("Check-up salvo");go("saude")},
+  saDel:()=>{const c=sdDraft;if(!c||!confirm("Excluir este check-up?"))return;S.saude=(S.saude||[]).filter(x=>x.id!==c.id);sdDraft=null;save();queueState();toast("Check-up excluído");go("saude")},
   trNew:()=>{trDraft={novo:true,id:uid(),nome:"",ex:[{n:"",s:"",r:"",c:"",i:""}]};go("treinoed")},
   trEdit:d=>{const t=(S.treinos||[]).find(x=>x.id===d.id);if(!t)return;trDraft=structuredClone(t);if(!trDraft.ex.length)trDraft.ex.push({n:"",s:"",r:"",c:"",i:""});go("treinoed")},
   trExAdd:()=>{if(trDraft&&trDraft.ex.length<30){trDraft.ex.push({n:"",s:"",r:"",c:"",i:""});render()}},
@@ -731,6 +794,7 @@ const A={
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
 document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
+  else if(sdDraft&&/^sx_/.test(e.target.id||"")){const id=e.target.id;if(id==="sx_data")sdDraft.data=e.target.value;else if(id==="sx_lab")sdDraft.lab=e.target.value;else{const[,i,k]=id.split("_");if(sdDraft.itens[+i])sdDraft.itens[+i][k]=e.target.value}}
   else if(trDraft&&/^tx_/.test(e.target.id||"")){const id=e.target.id;if(id==="tx_nome")trDraft.nome=e.target.value;else{const[,i,k]=id.split("_");if(trDraft.ex[+i])trDraft.ex[+i][k]=e.target.value}}
   else if(nf&&/^nf_[nkpcf]$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
   else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*(x.q||0)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
@@ -742,6 +806,11 @@ document.addEventListener("change",e=>{
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
   if(t.dataset.di!==undefined)return;
+  if(t.id==="sa_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo o PDF...");
+    pdfText(f).then(tx=>{if(tx.replace(/\s/g,"").length<20)return toast("Esse PDF não tem texto para ler (foto ou escaneado). Digite os valores.");
+      const itens=parseExames(tx),dm=tx.match(/(?:coleta|data|realizad[oa]|emiss[aã]o)[^\d\n]{0,25}(\d{2})\/(\d{2})\/(\d{4})/i)||tx.match(/(\d{2})\/(\d{2})\/(\d{4})/),dt=dm?dm[3]+"-"+dm[2]+"-"+dm[1]:today();
+      sdDraft={novo:true,id:uid(),data:dt>today()?today():dt,lab:"",itens:itens.length?itens:[{n:"",u:"",v:"",min:"",max:""}]};go("saudeed");
+      toast(itens.length?"Reconheci "+itens.length+" exame(s). Confira os valores.":"Não reconheci exames. Digite os valores.")}).catch(()=>toast("Não consegui ler o PDF"));return}
   if(t.id==="pl_file"&&t.files[0]){const f=t.files[0],pdf=/\.pdf$/i.test(f.name)||f.type==="application/pdf";if(f.size>(pdf?15e6:2e6)){t.value="";return toast("Arquivo grande demais")}
     if(pdf){toast("Lendo o PDF...");pdfText(f).then(tx=>{if(tx.replace(/\s/g,"").length<20)return toast("Esse PDF não tem texto para ler (foto ou escaneado). Digite o plano na caixa abaixo.");pimpFrom(tx,"PDF: "+f.name.slice(0,40),f.name)}).catch(()=>toast("Não consegui abrir esse PDF"))}
     else f.text().then(tx=>pimpFrom(tx,"documento: "+f.name.slice(0,40),f.name));t.value=""}
