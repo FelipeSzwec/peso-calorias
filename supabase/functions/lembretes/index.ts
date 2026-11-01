@@ -7,7 +7,7 @@ const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT")!, Deno.env.get("VAPID_PUBLIC")!, Deno.env.get("VAPID_PRIVATE")!);
 
 const PDIAS: Record<string, number> = { diario: 1, semanal: 7, mensal: 30 };
-const JANELA = 15; // minutos, igual ao intervalo do agendamento
+const JANELA = 5; // minutos, igual ao intervalo do agendamento (a cada 5 min)
 
 function agora(tz: string) {
   const p = Object.fromEntries(
@@ -17,7 +17,12 @@ function agora(tz: string) {
   return { data: `${p.year}-${p.month}-${p.day}`, min: +p.hour * 60 + +p.minute };
 }
 const dias = (a: string, b: string) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
-const dentro = (min: number, h: number, m: number) => min >= h * 60 + m && min < h * 60 + m + JANELA;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const dentro = (min: number, hhmm: string) => {
+  if (!HHMM.test(hhmm)) return false;
+  const [h, m] = hhmm.split(":").map(Number);
+  return min >= h * 60 + m && min < h * 60 + m + JANELA;
+};
 
 Deno.serve(async (req) => {
   if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) return new Response("não autorizado", { status: 401 });
@@ -35,11 +40,14 @@ Deno.serve(async (req) => {
     const st = cacheEstado.get(s.user_id), cfg = st.settings ?? {};
     const msgs: { key: string; title: string; body: string }[] = [];
 
+    const av = cfg.avisos ?? {};
     if (cfg.lembrete) {
-      if (dentro(t.min, 12, 30)) msgs.push({ key: "ref-1230", title: "Hora de lançar sua refeição", body: "Registre o que comeu em segundos." });
-      if (dentro(t.min, 19, 0)) msgs.push({ key: "ref-1900", title: "Hora de lançar sua refeição", body: "Registre o que comeu em segundos." });
+      const refs: string[] = Array.isArray(av.ref) ? av.ref : ["12:30", "19:00"];
+      for (const h of refs.slice(0, 8)) {
+        if (dentro(t.min, h)) msgs.push({ key: "ref-" + h, title: "Hora de lançar sua refeição", body: "Registre o que comeu em segundos." });
+      }
     }
-    if (dentro(t.min, 9, 0)) {
+    if (dentro(t.min, av.chk ?? "09:00")) {
       const datas: string[] = (st.saude ?? []).map((c: any) => c.data).filter(Boolean).sort();
       if (datas.length) {
         const u = new Date(datas[datas.length - 1] + "T12:00:00Z");
@@ -50,7 +58,7 @@ Deno.serve(async (req) => {
         }
       }
     }
-    if (dentro(t.min, 8, 0) && PDIAS[cfg.pesoFreq]) {
+    if (dentro(t.min, av.peso ?? "08:00") && PDIAS[cfg.pesoFreq]) {
       if (!cachePeso.has(s.user_id)) {
         const { data } = await sb.from("days").select("date").eq("user_id", s.user_id).not("peso", "is", null).order("date", { ascending: false }).limit(1);
         cachePeso.set(s.user_id, data?.[0]?.date ?? null);

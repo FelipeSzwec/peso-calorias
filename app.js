@@ -385,7 +385,7 @@ function vAjustes(){
   const tg=(a,on,n,s)=>`<button class="row" data-a="${a}"><span class="n"><b>${n}</b><small>${s}</small></span><span class="tg ${on?"on":""}"></span></button>`;
   const lk=(a,v,n,r="›")=>`<button class="row" data-a="${a}" data-v="${v||""}"><span class="n">${n}</span><span class="mu">${r}</span></button>`;
   const c=calcGasto();
-  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes e avisos",S.settings.lembrete&&S.settings.pushOn?"Refeições (12:30 e 19:00), peso e check-up, mesmo com o app fechado":"Refeições às 12:30 e 19:00 com o app aberto; entre na conta para avisos com o app fechado")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
+  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes e avisos",S.settings.lembrete&&S.settings.pushOn?"Refeições, peso e check-up, mesmo com o app fechado":"Refeições, só com o app aberto. Entre na conta para avisos com o app fechado")}${lk("go","avisos","Horários dos avisos")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
   <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","auto","Meta automática",hasPlan()?"plano manda ›":S.auto.on?"automática ligada ›":"desligada ›")}${lk("go","calc","Calculadora de gasto",c?fmt(c.rest)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
   ${devOn?`<div class="lbl">Ferramentas avançadas</div><div class="card flush">${lk("go","import","Importar do app antigo")}${lk("go","finimp","Importar finanças (JSON)")}</div>`:""}<p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · <span data-a="verTap">versão 3.0</span></p>`,{back:"inicio"});
@@ -428,6 +428,14 @@ const saudeOrd=()=>[...(S.saude||[])].sort((a,b)=>a.data<b.data?1:-1);
 const saudeProx=()=>{const u=saudeOrd()[0];if(!u)return null;const p=new Date(u.data+"T12:00:00");p.setFullYear(p.getFullYear()+1);const d=iso(p);return{data:d,dias:diasEntre(today(),d)}};
 const saudeAviso=()=>{const p=saudeProx();if(!p)return"";return p.dias<0?"Check-up atrasado há "+(-p.dias)+" dia(s)":p.dias<=30?"Hora de fazer o check-up: faltam "+p.dias+" dia(s)":""};
 const dmy=d=>d.slice(8)+"/"+d.slice(5,7)+"/"+d.slice(0,4);
+function vAvisos(){
+  const a=avisos(),tm=(id,v)=>`<input id="${id}" type="time" value="${v}" style="width:auto">`;
+  return page(`<h1 style="margin-bottom:6px">Horários dos avisos</h1><p class="mu" style="font-size:13px;margin:0 0 14px">Escolha os horários que combinam com a sua rotina. Os avisos com o app fechado valem para o fuso do seu celular.</p>
+  <div class="lbl" style="margin-top:0">Refeições</div><div class="card flush">${a.ref.map((x,i)=>`<div class="dq"><span class="n">Aviso ${i+1}</span>${tm("av_ref_"+i,x)}<button data-a="avDel" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")||`<div class="dq"><span class="mu">Nenhum horário.</span></div>`}</div>
+  <button class="btn ghost" style="margin-top:8px" data-a="avAdd">＋ Adicionar horário</button>
+  <div class="lbl">Pesagem</div><div class="card flush"><div class="dq"><span class="n">Avisar às<br><small class="mu">Só se a frequência do peso não for "Livre"</small></span>${tm("av_peso",a.peso)}</div></div>
+  <div class="lbl">Check-up</div><div class="card flush"><div class="dq"><span class="n">Avisar às<br><small class="mu">30, 14, 7 e 1 dia antes do prazo de 1 ano</small></span>${tm("av_chk",a.chk)}</div></div>`,{back:"ajustes"});
+}
 function vSaude(){
   const L=saudeOrd(),u=L[0],pr=saudeProx(),av=saudeAviso();
   const ant=L[1],sum1=c=>{const r={ok:0,fora:0};c.itens.forEach(x=>{const t=stEx(x);if(t==="ok")r.ok++;else if(t!=="?")r.fora++});return r};
@@ -487,7 +495,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -771,6 +779,8 @@ const A={
   saveCad:()=>{const p={...S.profile,nome:$("#c_nome").value.trim().slice(0,30),idade:num($("#c_idade").value),alt:num($("#c_alt").value),peso:num($("#c_peso").value)};
     if(!p.nome||!(p.idade>=10)||!(p.alt>=100)||!(p.peso>=30))return toast("Confira os campos");if(p.peso!==S.profile.peso){const D=day(today());D.peso=p.peso;queue("days",{date:today(),...D},true)}S.profile=p;save();queueState();toast("Cadastro salvo");go("ajustes")},
   tgPin:()=>{if(S.settings.pinHash){if(confirm("Desativar o bloqueio por PIN?")){S.settings.pinHash=S.settings.pinSalt=null;save();render()}}else go("setpin")},
+  avAdd:()=>{const a=avisos();if(a.ref.length>=8)return toast("Máximo de 8 horários");S.settings.avisos={...a,ref:[...a.ref,"12:00"]};save();queueState();remind();render()},
+  avDel:d=>{const a=avisos();a.ref.splice(+d.i,1);S.settings.avisos=a;save();queueState();remind();render()},
   tgLem:async()=>{const on=!S.settings.lembrete;if(on){if(!("Notification" in window)||(await Notification.requestPermission())!=="granted")return toast("Permita notificações nas configurações do navegador");
       if(pushOk()){try{await pushOn();S.settings.pushOn=true}catch(e){S.settings.pushOn=false;toast("Avisos com o app fechado indisponíveis agora")}}}
     else{S.settings.pushOn=false;await pushOff()}
@@ -804,6 +814,7 @@ document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("
 document.addEventListener("change",e=>{
   const t=e.target;
   if(t.id==="rv_ini"){const d=t.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>today())return;S.auto.rev={em:addDias(d,-1),peso:pesoMedia(addDias(d,-7),d)||pesoTend()};save();queueState();toast("Início do acompanhamento definido");render();return}
+  if(/^av_(ref_\d+|peso|chk)$/.test(t.id||"")){const v=t.value;if(!HHMM.test(v))return render();const a=avisos();if(t.id==="av_peso")a.peso=v;else if(t.id==="av_chk")a.chk=v;else a.ref[+t.id.slice(7)]=v;a.ref=[...new Set(a.ref)].sort();S.settings.avisos=a;save();queueState();remind();render();return}
   if(/^rv_(treino|descanso)_[pcg]$/.test(t.id||"")){const[,tp,m]=t.id.split("_"),v=num(t.value);if(v!=null&&v>=0&&v<=2000){revEdit[tp+m]=v;revRefresh()}return}
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
@@ -837,8 +848,10 @@ async function pushOn(){
   await Cloud.rest("POST","push_subs?on_conflict=endpoint",{endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,tz:Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Sao_Paulo"},{Prefer:"resolution=merge-duplicates,return=minimal"})}
 async function pushOff(){
   try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub){await Cloud.rest("DELETE","push_subs?endpoint=eq."+encodeURIComponent(sub.endpoint)).catch(()=>{});await sub.unsubscribe()}}catch(e){}}
+const AV0={ref:["12:30","19:00"],peso:"08:00",chk:"09:00"},HHMM=/^([01]\d|2[0-3]):[0-5]\d$/;
+const avisos=()=>{const a={...AV0,...(S.settings.avisos||{})};a.ref=(a.ref||[]).filter(x=>HHMM.test(x));return a};
 function remind(){clearTimeout(rt);if(S.settings.pushOn||!S.settings.lembrete||!("Notification" in window)||Notification.permission!=="granted")return;
-  const n=new Date(),next=[[12,30],[19,0]].map(([h,m])=>{const d=new Date();d.setHours(h,m,0,0);if(d<=n)d.setDate(d.getDate()+1);return d}).sort((a,b)=>a-b)[0];
+  const n=new Date(),next=(avisos().ref.length?avisos().ref:[]).map(x=>x.split(":").map(Number)).map(([h,m])=>{const d=new Date();d.setHours(h,m,0,0);if(d<=n)d.setDate(d.getDate()+1);return d}).sort((a,b)=>a-b)[0];if(!next)return;
   rt=setTimeout(async()=>{const r=await navigator.serviceWorker.ready;r.showNotification("Hora de lançar sua refeição",{body:"Registre o que comeu em segundos.",icon:"icon-180.png",tag:"lembrete"});remind()},next-n)}
 
 /* ---------- Início ---------- */
