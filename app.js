@@ -300,7 +300,7 @@ function autoTick(){
     const pt=pesoTend();if(!pt)return;
     if(!a.rev){a.rev=revInicio(pt);save();queueState()}
     if(revForce){const b=revBaseManual();revPend=b?revPlano(b,pt,hj,true):{kind:"dados",previa:true,dias:0,logged:0,pesos:0};revEditAplicar(revPend);return}
-    if(diasEntre(a.rev.em,hj)<7)return;
+    if(diasEntre(a.rev.em,hj)<8)return;
     revPend=revPlano(a.rev,pt,hj);revEditAplicar(revPend);return}
   if(!a.on)return;
   if(a.lastRev&&diasEntre(a.lastRev,hj)<7)return;
@@ -311,7 +311,7 @@ function autoTick(){
 const sgn=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v));
 function revBanner(){
   const r=revPend;if(!r&&!hasPlan())return"";
-  const a=S.auto,prox=hasPlan()&&a.rev?fmtData(addDias(a.rev.em,7)):"";
+  const a=S.auto,prox=hasPlan()&&a.rev?fmtData(addDias(a.rev.em,8)):"";
   const sub=!r?"Toque para ver uma prévia"+(prox?" · próxima sugestão em "+prox:""):r.kind==="plano"?(r.ok?"Você está no ritmo do seu objetivo":"Sugestão disponível para esta semana"):r.kind==="dados"?"Faltam dados para recalcular":"Nova meta estimada disponível";
   return`<div class="card flush rev"><button class="row" data-a="ajusteOpen"><span class="n"><b>Ajuste semanal</b><small>${sub}</small></span><span class="mu">›</span></button></div>`}
 function vAjuste(){return page(revPend?revCard():`<h1>Ajuste semanal</h1><p class="mu">${hasPlan()?"Registre o peso e as refeições para ver uma sugestão.":"Importe o seu plano alimentar em Ajustes para usar o ajuste semanal."}</p>`,{back:"hoje"})}
@@ -332,7 +332,7 @@ function vAuto(){
   const lk=(k,v)=>`<div class="calc"><span>${k}</span><b>${v}</b></div>`;
   return page(`<h1>Meta automática</h1><p class="mu" style="margin:4px 0 16px;font-size:13px">Uma estimativa do quanto comer, calculada pelo seu peso, seu gasto e seu objetivo. Não substitui a orientação de um nutricionista.</p>
   ${hasPlan()?"":`<div class="card flush"><button class="row" data-a="autoToggle"><span class="n"><b>Usar meta automática</b><small>${a.on?"Ligada: a meta aparece na Nutrição":"Desligada: o app só mostra o que você ingeriu"}</small></span><span class="tg ${a.on?"on":""}"></span></button></div>`}
-  ${hasPlan()?`<div class="card"><b>Seu plano alimentar manda</b><p class="mu" style="font-size:13px;margin:6px 0 0">As metas de calorias e macros da tela Hoje e do histórico são sempre as do seu plano. Toda semana o app compara seu peso e o que você comeu com o seu objetivo e <b>sugere</b> um ajuste. Nada muda sem você aceitar.${a.rev?` Próximo ajuste: <b>${fmtData(addDias(a.rev.em,7))}</b>.`:""}</p>${S.dieta.metasPlano?`<button class="btn ghost" style="margin-top:12px" data-a="revReset">Voltar às metas originais do plano</button>`:""}</div>`:""}
+  ${hasPlan()?`<div class="card"><b>Seu plano alimentar manda</b><p class="mu" style="font-size:13px;margin:6px 0 0">As metas de calorias e macros da tela Hoje e do histórico são sempre as do seu plano. Toda semana o app compara seu peso e o que você comeu com o seu objetivo e <b>sugere</b> um ajuste. Nada muda sem você aceitar.${a.rev?` Próximo ajuste: <b>${fmtData(addDias(a.rev.em,8))}</b>, com 7 dias completos.`:""}</p><div class="fld" style="margin-top:12px"><label for="rv_ini">Primeiro dia do acompanhamento</label><input id="rv_ini" type="date" value="${a.rev?addDias(a.rev.em,1):""}" max="${today()}"></div>${S.dieta.metasPlano?`<button class="btn ghost" style="margin-top:12px" data-a="revReset">Voltar às metas originais do plano</button>`:""}</div>`:""}
   <div class="card"><div class="mu" style="font-size:12px;margin-bottom:6px">Seu objetivo (do cadastro)</div><b>${GOALS[goal]}</b>${goal!==1?`<div class="mu" style="font-size:12px;margin:14px 0 8px">Ritmo</div><div class="seg">${RITMOS.map((n,i)=>`<button data-a="autoRitmo" data-i="${i}" class="${(a.ritmo??1)===i?"on":""}">${n}</button>`).join("")}</div><div class="mu" style="font-size:12px;margin-top:8px">${goal===0?"Perda de cerca de "+["0,25%","0,5%","0,75%"][a.ritmo??1]+" do peso por semana.":"Ganho de cerca de "+["0,15%","0,25%","0,35%"][a.ritmo??1]+" do peso por semana."}</div>`:""}</div>
   ${a.on&&ap?`<div class="card"><div class="lbl" style="margin-top:0">Meta atual</div>${lk("Dia de descanso",fmt(ap.descanso.k)+" kcal")}${lk("Dia de treino",fmt(ap.treino.k)+" kcal")}${lk("Proteína · Carbo · Gordura",fmt(ap.descanso.p)+" · "+fmt(ap.descanso.c)+" · "+fmt(ap.descanso.g)+" g")}${ap.descanso.limited||ap.treino.limited?`<p class="mu" style="font-size:12px;margin:8px 0 0">Limitada pelo piso de segurança (taxa metabólica basal).</p>`:""}<p class="mu" style="font-size:12px;margin:8px 0 0">Atualizada em ${ap.em?ap.em.slice(8)+"/"+ap.em.slice(5,7):"—"}. Os macros acima são do dia de descanso.</p><button class="btn ghost" style="margin-top:12px" data-a="autoNow">Recalcular agora</button></div>`:""}
   <div class="card"><div class="lbl" style="margin-top:0">Seus dados</div>${lk("Peso médio (7 dias)",pt?fmt(pt,1)+" kg":"—")}${c?lk("Gasto estimado, descanso",fmt(c.rest)+" kcal")+lk("Gasto estimado, treino",fmt(c.trein)+" kcal"):""}${cal.ok?lk("Gasto real estimado",fmt(cal.real)+" kcal")+`<p class="mu" style="font-size:12px;margin:8px 0 0">Calculado pelo que você comeu e pela variação do seu peso em 3 semanas. Vale se você lançou tudo o que comeu.</p>`:`<p class="mu" style="font-size:12px;margin:8px 0 0">Calibração com seus dados: ${esc(cal.msg)}</p>`}</div>
@@ -692,6 +692,7 @@ document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("
   else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*(x.q||0)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(t.id==="rv_ini"){const d=t.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>today())return;S.auto.rev={em:addDias(d,-1),peso:pesoMedia(addDias(d,-7),d)||pesoTend()};save();queueState();toast("Início do acompanhamento definido");render();return}
   if(/^rv_(treino|descanso)_[pcg]$/.test(t.id||"")){const[,tp,m]=t.id.split("_"),v=num(t.value);if(v!=null&&v>=0&&v<=2000){revEdit[tp+m]=v;revRefresh()}return}
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
