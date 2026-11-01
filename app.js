@@ -13,14 +13,14 @@ const toast=t=>{const e=$("#toast");e.textContent=t;e.classList.add("on");clearT
 
 /* ---------- Estado local (offline primeiro) ---------- */
 const KEY="pc3";
-const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null,rev:null}};
+const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],treinos:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null,rev:null}};
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){S={}}
 S={...structuredClone(DEF),...S};S.settings={...DEF.settings,...S.settings,plan:{...DEF.settings.plan,...(S.settings||{}).plan}};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Sem espaço para salvar no aparelho")}};
 const rowKey=(t,r)=>t==="days"?r.date:t==="user_state"?"s":r.id;
 function queue(t,row,quiet){const k=rowKey(t,row);S.outbox=S.outbox.filter(o=>!(o.t===t&&o.k===k));S.outbox.push({t,k,row});if(!quiet){save();Cloud.sync()}}
-const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods,dieta:S.dieta,fin:S.fin,auto:S.auto}};
+const stateRow=()=>{const{pinHash,pinSalt,...st}=S.settings;return{profile:S.profile,settings:st,customFoods:S.customFoods,treinos:S.treinos,dieta:S.dieta,fin:S.fin,auto:S.auto}};
 const queueState=()=>{if(S.profile)queue("user_state",stateRow())};
 
 /* ---------- Nuvem (Supabase: login + RLS) ---------- */
@@ -66,6 +66,7 @@ const Cloud={
       const d=r.data;if(d.profile){S.profile=d.profile;S.onboarded=true}
       if(d.settings)S.settings={...S.settings,...d.settings,pinHash:S.settings.pinHash,pinSalt:S.settings.pinSalt};
       if(d.customFoods)S.customFoods=d.customFoods;
+      if(Array.isArray(d.treinos))S.treinos=d.treinos;
       if(d.dieta!==undefined)S.dieta=d.dieta;
       if(d.fin)S.fin=Fin.norm(d.fin);
       if(d.auto)S.auto={...S.auto,...d.auto}}
@@ -286,7 +287,7 @@ function revPlano(rev,pt,hj,previa){
   const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
   return{kind:"plano",previa,nota,dias,kw,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
 }
-let revEdit={};
+let revEdit={},trDraft=null;
 function revDica(n,peso,goal){
   const pk=n.p/peso,ck=n.c/peso,gk=n.g/peso,gp=n.k>0?n.g*9/n.k*100:0,pz=S.profile&&S.profile.sexo==="f"?1200:1500,f1=v=>fmt(v,1);
   const L=(txt,ruim)=>`<div class="${ruim?"bad":"mu"}" style="font-size:12px;margin-top:4px">${txt}</div>`;
@@ -393,8 +394,25 @@ function vTreino(){
   <div class="card"><div class="lbl" style="margin-top:0">Balanço do dia</div><div class="grid3"><div class="mini"><small>Ingeridas</small><b>${fmt(t.k)}</b><small style="display:inline"> kcal</small></div><div class="mini"><small>Gastas</small><b>${fmt(g)}</b><small style="display:inline"> kcal</small></div><div class="mini"><small>${cur===today()?"Saldo parcial":"Saldo"}</small><b class="${has?(s>0?"good":"bad"):"mu"}">${has?sg+fmt(Math.abs(s)):"—"}</b></div></div>
   <div class="mu" style="font-size:13px;margin-top:12px">${has?(cur===today()?"Até agora: ":"")+(s>0?"superávit de "+fmt(s)+" kcal.":s<0?"déficit de "+fmt(-s)+" kcal.":"saldo zerado.").replace(/^./,c=>cur===today()?c:c.toUpperCase()):"Lance as refeições em Nutrição para ver o saldo."}</div></div>
   <div class="card"><div class="fld"><label for="tr_nome">Treino do dia</label><div class="row" style="border:0;padding:0"><input id="tr_nome" value="${esc(D.treino||"")}" maxlength="80" placeholder="Ex.: Peito e tríceps, corrida 5 km"><button class="btn" style="width:auto;padding:14px 20px" data-a="saveTreino">Salvar</button></div></div></div>
+  ${(()=>{const T=S.treinos||[],sel=T.find(x=>x.nome===D.treino);return`${sel?`<div class="rh"><h2>${esc(sel.nome)}</h2><button class="lk" data-a="trEdit" data-id="${sel.id}">Editar</button></div>${trLista(sel)}`:""}
+  <div class="rh"><h2>Meus treinos</h2><button class="lk" data-a="trNew">＋ Novo</button></div>${T.length?`<div class="card flush">${T.map(x=>`<div class="dq"><button class="row" style="flex:1;border:0;padding:0" data-a="trUse" data-id="${x.id}"><span class="n"><b>${esc(x.nome)}</b><small>${x.ex.length} exerc. · toque para usar neste dia</small></span><span class="mu">${x.nome===D.treino?"✓":""}</span></button><button class="lk" data-a="trEdit" data-id="${x.id}" aria-label="Editar">✎</button></div>`).join("")}</div>`:`<p class="mu" style="font-size:13px">Salve aqui seus treinos com exercícios, séries, repetições, carga e intervalo. Depois é só tocar para usar no dia.</p>`}`})()}
   <div class="card" style="margin-top:12px"><div class="fld"><label for="gw">Gasto do dia (Apple Watch ou outro monitor)</label><div class="row" style="border:0;padding:0"><input id="gw" inputmode="numeric" value="${D.gasto||""}" placeholder="Estimado: ${fmt(m.gasto)} kcal"><button class="btn" style="width:auto;padding:14px 20px" data-a="saveGasto">Salvar</button></div></div><div class="mu" style="font-size:12px;margin-top:8px">${D.gasto?"Usando o gasto que você informou.":"Sem valor: usando o gasto estimado pela Calculadora de gasto (aba Plano)."} Se você usa um monitor, como o Apple Watch, informe o total do dia (ativas + em repouso). Se preferir não informar, o app usa a estimativa da calculadora. Você também pode digitar aqui qualquer outro dado de gasto que tenha.</div></div>
   ${weekSummary()}`);
+}
+const trTxt=x=>[x.s&&x.r?x.s+" × "+x.r:x.s?x.s+" séries":x.r?x.r+" reps":"",x.c?fmt(x.c,1)+" kg":"",x.i?x.i+" s de intervalo":""].filter(Boolean).join(" · ");
+function trLista(t){return t.ex.length?`<div class="card flush">${t.ex.map(x=>`<div class="dq"><span class="n"><b>${esc(x.n)}</b><br><small class="mu">${trTxt(x)||"sem detalhes"}</small></span></div>`).join("")}</div>`:`<p class="mu" style="font-size:13px">Sem exercícios.</p>`}
+function vTreinoEd(){
+  const t=trDraft;if(!t){view="treino";return vTreino()}
+  const f=(i,k,l,ph,v,mode)=>`<div class="fld"><label for="tx_${i}_${k}">${l}</label><input id="tx_${i}_${k}" inputmode="${mode}" value="${esc(v??"")}" placeholder="${ph}"></div>`;
+  return page(`<h1 style="margin-bottom:14px">${t.novo?"Novo treino":"Editar treino"}</h1>
+  ${field("tx_nome","Nome do treino",t.nome,"Ex.: Treino A · Peito e tríceps",'maxlength="40"')}
+  ${t.ex.map((x,i)=>`<div class="card" style="margin-top:12px"><div class="rh" style="margin:0 0 8px"><b>Exercício ${i+1}</b><button class="lk" data-a="trExDel" data-i="${i}">Remover</button></div>
+    <div class="fld"><label for="tx_${i}_n">Exercício</label><input id="tx_${i}_n" value="${esc(x.n)}" maxlength="60" placeholder="Ex.: Supino reto"></div>
+    <div class="grid2" style="margin-top:10px">${f(i,"s","Séries","4",x.s,"numeric")}${f(i,"r","Repetições","10",x.r,"numeric")}</div>
+    <div class="grid2" style="margin-top:10px">${f(i,"c","Carga (kg)","40",x.c,"decimal")}${f(i,"i","Intervalo (seg)","60",x.i,"numeric")}</div></div>`).join("")}
+  <button class="btn ghost" style="margin-top:12px" data-a="trExAdd">＋ Adicionar exercício</button>
+  <button class="btn" style="margin-top:12px" data-a="trSave">Salvar treino</button>
+  ${t.novo?"":`<button class="lk" data-a="trDel" style="display:block;margin:14px auto 0"><span class="bad">Excluir este treino</span></button>`}`,{back:"treino"});
 }
 function vInicio(){
   cur=today();
@@ -412,7 +430,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -634,6 +652,18 @@ const A={
     const nm=M[i],dest=M[i?i-1:1],cnt=S.entries.filter(e=>e.meal===nm&&!e.deleted).length;
     if(cnt&&!confirm("“"+nm+"” tem "+cnt+" lançamento(s). Eles passam para “"+dest+"”. Remover a refeição?"))return;
     moveMeal(nm,dest);M.splice(i,1);if(meal>=M.length)meal=M.length-1;queueState();render()},
+  trNew:()=>{trDraft={novo:true,id:uid(),nome:"",ex:[{n:"",s:"",r:"",c:"",i:""}]};go("treinoed")},
+  trEdit:d=>{const t=(S.treinos||[]).find(x=>x.id===d.id);if(!t)return;trDraft=structuredClone(t);if(!trDraft.ex.length)trDraft.ex.push({n:"",s:"",r:"",c:"",i:""});go("treinoed")},
+  trExAdd:()=>{if(trDraft&&trDraft.ex.length<30){trDraft.ex.push({n:"",s:"",r:"",c:"",i:""});render()}},
+  trExDel:d=>{if(trDraft){trDraft.ex.splice(+d.i,1);render()}},
+  trSave:()=>{const t=trDraft;if(!t)return;const nome=(t.nome||"").trim().slice(0,40);if(!nome)return toast("Dê um nome ao treino");
+    if((S.treinos||[]).some(x=>x.id!==t.id&&x.nome===nome))return toast("Já existe um treino com esse nome");
+    const ex=t.ex.filter(x=>(x.n||"").trim()).map(x=>({n:x.n.trim().slice(0,60),s:clamp(x.s,0,99)||"",r:clamp(x.r,0,999)||"",c:clamp(x.c,0,2000)||"",i:clamp(x.i,0,3600)||""}));
+    if(!S.treinos)S.treinos=[];const old=S.treinos.find(x=>x.id===t.id);
+    if(old){const D=day(cur);if(D.treino===old.nome&&old.nome!==nome){D.treino=nome;queue("days",{date:cur,...D},true)}Object.assign(old,{nome,ex})}else S.treinos.push({id:t.id,nome,ex});
+    trDraft=null;save();queueState();toast("Treino salvo");go("treino")},
+  trDel:()=>{const t=trDraft;if(!t||!confirm("Excluir este treino?"))return;S.treinos=(S.treinos||[]).filter(x=>x.id!==t.id);trDraft=null;save();queueState();toast("Treino excluído");go("treino")},
+  trUse:d=>{const t=(S.treinos||[]).find(x=>x.id===d.id);if(!t)return;const D=day(cur);D.treino=D.treino===t.nome?"":t.nome;queue("days",{date:cur,...D});toast(D.treino?"Treino do dia definido":"Treino removido do dia");render()},
   saveTreino:()=>{const D=day(cur);D.treino=$("#tr_nome").value.trim().slice(0,80);queue("days",{date:cur,...D});toast(D.treino?"Treino salvo":"Treino removido");render()},
   runImport:async()=>{const url=$("#i_url").value.trim(),tok=$("#i_tok").value.trim(),msg=$("#i_msg"),btn=$("#i_go");
     if(!/^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+\/|macros\/)s\/[\w-]+\/exec$/.test(url)||!tok)return toast("Confira o endereço e o token");
@@ -697,6 +727,7 @@ const A={
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
 document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
+  else if(trDraft&&/^tx_/.test(e.target.id||"")){const id=e.target.id;if(id==="tx_nome")trDraft.nome=e.target.value;else{const[,i,k]=id.split("_");if(trDraft.ex[+i])trDraft.ex[+i][k]=e.target.value}}
   else if(nf&&/^nf_[nkpcf]$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
   else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*(x.q||0)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
 document.addEventListener("change",e=>{
