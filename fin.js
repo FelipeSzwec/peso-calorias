@@ -117,7 +117,7 @@ const line=(k,v,cls="")=>`<div class="fl ${cls}"><span class="mu">${k}</span><b>
 
 function vResumo(){
   const f=F(),now=NOW(),head=`<div class="top"><div><div class="mu">${MESL[now%12]} de ${Math.floor(now/12)}</div><h1>Finanças</h1></div></div>`;
-  if(empty(f))return head+`<div class="card"><b>Ainda não há dados.</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Comece lançando uma entrada na aba Contas.</p><button class="btn" data-a="go" data-v="fcontas">Ir para Contas</button></div>`;
+  if(empty(f))return head+`<div class="card"><b>Ainda não há dados.</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Comece lançando uma entrada na aba Contas.</p><button class="btn" data-a="go" data-v="fcontas">Ir para Contas</button></div><div class="card"><b>Já tem o arquivo financeiro.json?</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Escolha o arquivo e as suas contas entram de uma vez.</p><label class="btn ghost" style="display:block;text-align:center;cursor:pointer">Escolher arquivo<input type="file" id="fi_file" accept=".json,application/json,text/plain" hidden></label></div>`;
   const all=calc(f),rows=all.slice(0,12),r0=rows[0],base=Math.max(r0.ent,r0.out)||1,sel=Math.min(ui.sel,11),r=rows[sel];
   const maxAbs=Math.max(1,...rows.map(x=>Math.abs(x.saldo)));
   const ends=f.parcelas.filter(p=>endIdx(p)===r.m).map(p=>p.nome),notes=[];
@@ -214,6 +214,12 @@ function cleanImport(j){
   out.viagem={nome:typeof v.nome==="string"?v.nome.trim().slice(0,30):"",inicio:/^\d{4}-\d{2}$/.test(v.inicio||"")?v.inicio:null,mes:/^\d{4}-\d{2}$/.test(v.mes||"")?v.mes:null,meta:v.meta>0?Number(v.meta):null,teto:v.teto>=0?Number(v.teto):0};
   return out;
 }
+function importText(txt){
+  let j;try{j=JSON.parse(txt)}catch(e){return ctx.toast("O arquivo não é um JSON válido")}
+  const n=cleanImport(j);if(!n)return ctx.toast("Arquivo com dados inválidos");
+  if(!empty(F())&&!confirm("Isso substitui as finanças que já estão no app. Continuar?"))return;
+  ctx.S.fin=n;ctx.save();ctx.queueState();ctx.toast("Finanças importadas");ctx.go("fresumo");
+}
 function actions(c){
   ctx=c;if(!ctx.S.fin||!Array.isArray(ctx.S.fin.entradas))ctx.S.fin=norm(ctx.S.fin);
   document.addEventListener("change",e=>{
@@ -243,13 +249,8 @@ function actions(c){
       ui.open=null;commit();
     },
     finDel:d=>{if(!confirm("Remover este item?"))return;const f=F();f[ui.tab]=f[ui.tab].filter(x=>x.id!==d.id);ui.open=null;commit()},
-    finImp:()=>{
-      let j;try{j=JSON.parse(document.getElementById("fi_txt").value)}catch(e){return ctx.toast("O texto colado não é um JSON válido")}
-      const n=cleanImport(j);if(!n)return ctx.toast("Arquivo com dados inválidos");
-      if(!empty(F())&&!confirm("Isso substitui as finanças que já estão no app. Continuar?"))return;
-      ctx.S.fin=n;ctx.save();ctx.queueState();ctx.toast("Finanças importadas");ctx.go("fresumo");
-    }
+    finImp:()=>importText(document.getElementById("fi_txt").value)
   };
 }
-window.Fin={objNome,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
+window.Fin={objNome,importText,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
 })();
