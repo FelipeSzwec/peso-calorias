@@ -40,4 +40,5 @@
 {"n":"Chocolate ao leite","g":"Doces","u":"g","por":100,"k":540,"p":7.2,"c":59,"f":30},
 {"n":"Café sem açúcar","g":"Bebidas","u":"ml","por":100,"k":2,"p":0.1,"c":0.3,"f":0},
 {"n":"Suco de laranja","g":"Bebidas","u":"ml","por":100,"k":45,"p":0.7,"c":10.4,"f":0.2},
-{"n":"Refrigerante cola","g":"Bebidas","u":"ml","por":100,"k":37,"p":0,"c":9.4,"f":0}]
+{"n":"Refrigerante cola","g":"Bebidas","u":"ml","por":100,"k":37,"p":0,"c":9.4,"f":0},
+{"n":"Cerveja","g":"Bebidas","u":"ml","por":100,"k":41,"p":0.6,"c":3.3,"f":0}]

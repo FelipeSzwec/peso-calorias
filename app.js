@@ -178,7 +178,7 @@ function vLancar(){
   return page(`<h1 style="margin-bottom:14px">Lançar</h1><div class="chips">${S.settings.meals.map((m,i)=>`<button data-a="meal" data-i="${i}" data-stay="1" class="${i===meal?"on":""}">${esc(m)}</button>`).join("")}</div>
   ${planBox()}
   <input id="q" value="${esc(q)}" placeholder="Buscar ou digitar “200 g de arroz”" autocomplete="off" enterkeyhint="search">
-  ${nf?`<div class="card" style="margin-top:10px"><div class="lbl" style="margin-top:0">Novo alimento · valores por 100 g</div>${field("nf_n","Nome",nf.n||"","Ex.: Pão integral",'maxlength="60"')}<div class="grid2">${field("nf_k","Calorias (kcal)",nf.k||"","",'inputmode="decimal"')}${field("nf_p","Proteína (g)",nf.p||"","",'inputmode="decimal"')}${field("nf_c","Carbo (g)",nf.c||"","",'inputmode="decimal"')}${field("nf_f","Gordura (g)",nf.f||"","",'inputmode="decimal"')}</div><div class="frow"><button class="btn" data-a="nfSave">Salvar alimento</button><button class="btn ghost" data-a="nfCancel">Cancelar</button></div></div>`:`<button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>`}
+  ${nf?`<div class="card" style="margin-top:10px"><div class="lbl" style="margin-top:0">Novo alimento · valores por 100 ${nf.u==="ml"?"ml":"g"}</div><div class="seg" style="margin-bottom:10px"><button data-a="nfUn" data-u="g" class="${nf.u==="ml"?"":"on"}">Em gramas (g)</button><button data-a="nfUn" data-u="ml" class="${nf.u==="ml"?"on":""}">Em mililitros (ml)</button></div>${field("nf_n","Nome",nf.n||"","Ex.: Pão integral",'maxlength="60"')}<div class="grid2">${field("nf_k","Calorias (kcal)",nf.k||"","",'inputmode="decimal"')}${field("nf_p","Proteína (g)",nf.p||"","",'inputmode="decimal"')}${field("nf_c","Carbo (g)",nf.c||"","",'inputmode="decimal"')}${field("nf_f","Gordura (g)",nf.f||"","",'inputmode="decimal"')}</div><div class="frow"><button class="btn" data-a="nfSave">Salvar alimento</button><button class="btn ghost" data-a="nfCancel">Cancelar</button></div></div>`:`<button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>`}
   ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" placeholder="Qtd" inputmode="decimal" aria-label="Quantidade"><span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span><button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   <div class="lbl">${q?"Resultados":"Mais usados"}</div><div id="res">${foodList()}</div>
@@ -843,13 +843,14 @@ const A={
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"}));a.download="lancamentos.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},
   wipe:()=>{if(confirm("Apagar todos os dados DESTE aparelho? Dados já sincronizados continuam na sua conta.")){localStorage.removeItem(KEY);location.reload()}},
   newFood:()=>{nf={n:parseQ(q||"").name.slice(0,60)};render();try{const el=document.getElementById(nf.n?"nf_k":"nf_n");el&&el.focus()}catch(e){}},
+  nfUn:d=>{if(nf){nf.u=d.u==="ml"?"ml":"g";render()}},
   nfCancel:()=>{nf=null;render()},
   nfSave:()=>{if(!nf)return;const n=(nf.n||"").trim().slice(0,60),k=num(nf.k),p=num(nf.p)||0,c=num(nf.c)||0,f=num(nf.f)||0;
     if(!n)return toast("Digite o nome do alimento");
     if(k==null||k<0||k>1000)return toast("Informe as calorias em 100 g (0 a 1000)");
     if([p,c,f].some(v=>v<0||v>100))return toast("Macros devem ficar entre 0 e 100 g");
     if(foods().some(x=>x.n.toLowerCase()===n.toLowerCase()))return toast("Já existe um alimento com esse nome");
-    S.customFoods.push({n,g:"Meus alimentos",u:"g",por:100,k,p,c,f});nf=null;q=n;save();queueState();render();toast("Alimento cadastrado")}
+    S.customFoods.push({n,g:nf.u==="ml"?"Bebidas":"Meus alimentos",u:nf.u==="ml"?"ml":"g",por:100,k,p,c,f});nf=null;q=n;save();queueState();render();toast("Alimento cadastrado")}
 };
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
