@@ -379,7 +379,7 @@ function vCalc(tab){
 }
 function vCad(){
   const p=S.profile||{};
-  return page(`<h1>Cadastro</h1><p class="mu" style="margin:4px 0 16px;font-size:13px">Usamos estes dados para calcular o seu gasto calórico.</p><div class="card grid2">${field("c_nome","Nome",p.nome,"",'maxlength="30"').replace('class="fld"','class="fld" style="grid-column:1/-1"')}${field("c_idade","Idade",p.idade,"",'inputmode="numeric"')}${field("c_alt","Altura (cm)",p.alt,"",'inputmode="numeric"')}${field("c_peso","Peso (kg)",p.peso?fmt(p.peso,1):"","",'inputmode="decimal"')}<div class="fld"><label>Sexo</label><div class="seg"><button data-a="sexoC" data-s="m" class="${p.sexo!=="f"?"on":""}">M</button><button data-a="sexoC" data-s="f" class="${p.sexo==="f"?"on":""}">F</button></div></div></div>
+  return page(`<h1>Cadastro</h1><div class="card" style="display:flex;align-items:center;gap:14px">${avatar().replace('class="av"','class="av big"')}<div style="flex:1"><b>Foto de perfil</b><div class="mu" style="font-size:12px;margin-top:2px">Aparece na tela Início. Toque na foto para trocar.</div>${p.foto?`<button class="lk" data-a="fotoDel" style="margin-top:6px"><span class="bad">Remover foto</span></button>`:""}</div></div><div style="height:12px"></div><p class="mu" style="margin:4px 0 16px;font-size:13px">Usamos estes dados para calcular o seu gasto calórico.</p><div class="card grid2">${field("c_nome","Nome",p.nome,"",'maxlength="30"').replace('class="fld"','class="fld" style="grid-column:1/-1"')}${field("c_idade","Idade",p.idade,"",'inputmode="numeric"')}${field("c_alt","Altura (cm)",p.alt,"",'inputmode="numeric"')}${field("c_peso","Peso (kg)",p.peso?fmt(p.peso,1):"","",'inputmode="decimal"')}<div class="fld"><label>Sexo</label><div class="seg"><button data-a="sexoC" data-s="m" class="${p.sexo!=="f"?"on":""}">M</button><button data-a="sexoC" data-s="f" class="${p.sexo==="f"?"on":""}">F</button></div></div></div>
   <div class="lbl">Objetivo</div>${["Perder peso","Manter o peso","Ganhar massa"].map((g,i)=>`<button class="pick ${(p.goal||0)===i?"on":""}" data-a="goalC" data-i="${i}">${g}</button>`).join("")}<button class="btn" style="margin-top:10px" data-a="saveCad">Salvar cadastro</button>`,{back:"ajustes"});
 }
 function vConta(){
@@ -533,12 +533,13 @@ function vTreinoEd(){
   <button class="btn" style="margin-top:12px" data-a="trSave">Salvar treino</button>
   ${t.novo?"":`<button class="lk" data-a="trDel" style="display:block;margin:14px auto 0"><span class="bad">Excluir este treino</span></button>`}`,{back:"treino"});
 }
+const avatar=()=>{const p=S.profile||{};return`<label class="av" aria-label="Foto de perfil">${p.foto?`<img src="${p.foto}" alt="">`:esc((p.nome||"?").trim().charAt(0).toUpperCase()||"?")}<input type="file" id="foto_file" accept="image/*" hidden></label>`};
 function vInicio(){
   cur=today();
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),t=sum(ents(cur)),g=D.gasto||m.gasto,s=t.k-g,has=t.k>0,fr=Fin.homeSum(S.fin),h=new Date().getHours();
   const pesos=Object.entries(S.days).filter(([,x])=>x.peso).sort((a,b)=>a[0]<b[0]?-1:1),pe=pesos.length?pesos[pesos.length-1][1].peso:null;
   const sg=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v)),row=(k,v,c="")=>`<div class="mrow"><span class="mu">${k}</span><b class="${c}">${v}</b></div>`;
-  return page(`<div class="top"><div><div class="mu">${new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>${h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}${S.profile?.nome?", "+esc(S.profile.nome):""}</h1></div><button class="gear" data-a="go" data-v="ajustes" aria-label="Ajustes">⚙</button></div>
+  return page(`<div class="top">${avatar()}<div class="tt"><div class="mu">${new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>${h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}${S.profile?.nome?", "+esc(S.profile.nome):""}</h1></div><button class="gear" data-a="go" data-v="ajustes" aria-label="Ajustes">⚙</button></div>
   ${ringCard(t,m,D)}
   <button class="mc" data-a="go" data-v="hoje"><div class="mh"><span class="mi">🥗</span><b>Nutrição</b><span class="mu">›</span></div>${row("Calorias hoje",m.k?fmt(t.k)+" de "+fmt(m.k)+" kcal":fmt(t.k)+" kcal")}${m.k?`<div class="bar"><i style="width:${Math.min(100,t.k/m.k*100)}%"></i></div>`:""}${row("Proteína",fmt(t.p)+(m.p?" de "+fmt(m.p):"")+" g")}${row("Peso atual",pe?fmt(pe,1)+" kg":"—")}${pesoDue()?`<div class="due">⚖ ${pesoDue()}</div>`:""}</button>
   <button class="mc" data-a="go" data-v="treino"><div class="mh"><span class="mi">🏋️</span><b>Treino</b><span class="mu">›</span></div>${row("Dia de hoje",tipo==="Treino"?"Treino":"Descanso")}${row("Treino",esc(D.treino||"—"))}${row("Gasto do dia",g?fmt(g)+" kcal":"—")}</button>
@@ -830,6 +831,7 @@ const A={
   plan:d=>{S.settings.plan[d.k]=+d.v;save();queueState();render()},
   min:d=>{const p=S.settings.plan;p.min=Math.max(10,Math.min(240,p.min+ +d.n));save();queueState();render()},
   sexoC:d=>{S.profile.sexo=d.s;render()},goalC:d=>{S.profile.goal=+d.i;render()},
+  fotoDel:()=>{if(S.profile&&S.profile.foto){delete S.profile.foto;save();queueState();render();toast("Foto removida")}},
   saveCad:()=>{const p={...S.profile,nome:$("#c_nome").value.trim().slice(0,30),idade:num($("#c_idade").value),alt:num($("#c_alt").value),peso:num($("#c_peso").value)};
     if(!p.nome||!(p.idade>=10)||!(p.alt>=100)||!(p.peso>=30))return toast("Confira os campos");if(p.peso!==S.profile.peso){const D=day(today());D.peso=p.peso;queue("days",{date:today(),...D},true)}S.profile=p;save();queueState();toast("Cadastro salvo");go("ajustes")},
   tgPin:()=>{if(S.settings.pinHash){if(confirm("Desativar o bloqueio por PIN?")){S.settings.pinHash=S.settings.pinSalt=null;save();render()}}else go("setpin")},
@@ -876,6 +878,8 @@ document.addEventListener("change",e=>{
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
+  if(t.id==="foto_file"&&t.files[0]){const f=t.files[0];t.value="";if(!S.profile)return;if(!/^image\//.test(f.type))return toast("Escolha uma imagem");
+    const rd=new FileReader();rd.onerror=()=>toast("Não consegui abrir essa imagem");rd.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas"),N=192;c.width=c.height=N;const x=c.getContext("2d"),m=Math.min(img.width,img.height),sx=(img.width-m)/2,sy=(img.height-m)/2;x.drawImage(img,sx,sy,m,m,0,0,N,N);const d=c.toDataURL("image/jpeg",.82);if(d.length>80000)return toast("Imagem pesada demais");S.profile.foto=d;save();queueState();render();toast("Foto atualizada")};img.onerror=()=>toast("Não consegui abrir essa imagem");img.src=rd.result};rd.readAsDataURL(f);return}
   if(t.dataset.dp!==undefined){const x=draft[+t.dataset.dp];if(x){x.pi=t.value===""?null:+t.value;if(x.pi!=null&&!(x.q>0))x.q=1;render()}return}
   if(t.dataset.di!==undefined)return;
   if(t.id==="sa_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo o PDF...");
