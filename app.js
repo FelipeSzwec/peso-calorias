@@ -114,7 +114,7 @@ const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes"
 const go=v=>{if(v!=="ajuste")revForce=false;view=v;pinBuf="";render()};
 
 const FINV=["fresumo","fcontas","fviagem"],TREV=["treino","thist","tplano"];
-const nav=()=>{const tabs=FINV.includes(view)?[["fresumo","Resumo"],["fcontas","Contas"],["fviagem","Viagem"]]:TREV.includes(view)?[["treino","Hoje"],["thist","Histórico"],["tplano","Plano"]]:[["hoje","Hoje"],["lancar","Lançar"],["hist","Histórico"]];
+const nav=()=>{const tabs=FINV.includes(view)?[["fresumo","Resumo"],["fcontas","Contas"],["fviagem","Viagem"]]:TREV.includes(view)?[["treino","Hoje"],["thist","Histórico"],["tplano","Plano"]]:[["hoje","Hoje"],["lancar","Lançar"],["peso","Peso"],["hist","Histórico"]];
   return `<nav><button data-a="go" data-v="inicio"><i></i>Início</button>${tabs.map(([k,n])=>`<button data-a="go" data-v="${k}" class="${view===k?"on":""}"><i></i>${n}</button>`).join("")}</nav>`};
 const page=(body,{back,nonav}={})=>{const up=back||(nonav?"":view==="lancar"?"hoje":"inicio");return `<div class="scroll">${up?`<button class="back" data-a="go" data-v="${up}">‹ Voltar</button>`:""}${body}</div>${back||nonav?"":nav()}`};
 const pad=()=>`<div class="pins">${[0,1,2,3].map(i=>`<i class="${i===pinBuf.length?"cur":""}">${pinBuf[i]?"●":""}</i>`).join("")}</div><div class="keys">${["1","2","3","4","5","6","7","8","9","","0","⌫"].map(k=>k?`<button data-a="key" data-k="${k}" aria-label="${k}">${k}</button>`:"<span></span>").join("")}</div>`;
@@ -147,11 +147,13 @@ function vHoje(){
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),es=ents(cur),t=sum(es),dt=new Date(cur+"T12:00:00");
   return page(`<div class="top"><div><div class="mu">${cur===today()?"Hoje, ":""}${dt.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>Nutrição</h1></div><span class="chip"><i class="dot ${stat.ok?"ok":""}"></i>${esc(stat.t)}</span></div>
   <div class="dnav"><button data-a="day" data-n="-1" aria-label="Dia anterior">‹</button><button class="tipochip" data-a="go" data-v="treino"><b>${tipo==="Treino"?"Dia de treino":"Dia de descanso"}</b><small>alterar no Treino ›</small></button><button data-a="day" data-n="1" aria-label="Próximo dia" ${cur>=today()?"disabled style='opacity:.3'":""}>›</button></div>
-  ${revBanner()}${ringCard(t,m,D)}
+  ${revBanner()}${pesoCard()}${ringCard(t,m,D)}
   <div class="grid3">${[["Proteína","p"],["Carbo","c"],["Gordura","g"]].map(([n,f])=>`<div class="mini"><small>${n}</small><b>${fmt(t[f])}</b><small style="display:inline"> g</small>${m[f]?`<div class="bar"><i style="width:${Math.min(100,t[f]/m[f]*100)}%"></i></div>`:""}${m[f]?`<small class="${m[f]>=t[f]?"mu":"bad"}" style="display:block;margin-top:6px">${m[f]>=t[f]?"faltam "+fmt(m[f]-t[f]):"passou "+fmt(t[f]-m[f])} g</small>`:""}</div>`).join("")}</div>
   <div class="rh"><h2>Refeições</h2><button class="lk" data-a="mealEdit">${editMeals?"Concluir":"Editar"}</button></div>${editMeals?`<div class="card flush">${S.settings.meals.map((ml,i)=>`<div class="dq"><input class="mn" data-mi="${i}" value="${esc(ml)}" maxlength="30" aria-label="Nome da refeição ${i+1}"><button data-a="mealDel" data-i="${i}" aria-label="Remover ${esc(ml)}">✕</button></div>`).join("")}</div><button class="btn ghost" data-a="mealAdd">＋ Adicionar refeição</button><p class="mu" style="font-size:12px;margin:8px 4px 0">Toque no nome para renomear. Ao remover uma refeição, o que foi lançado nela passa para a refeição anterior.</p>`:`<div class="card flush">${S.settings.meals.map((ml,i)=>{const l=es.filter(e=>e.meal===ml),k=sum(l).k;return`<button class="row" data-a="meal" data-i="${i}"><span class="ck ${l.length?"on":""}">${l.length?"✓":""}</span><span class="n"><b>${esc(ml)}</b><small>${l.length?`${l.length} ${l.length>1?"itens":"item"}`:"Não lançado"}</small></span><b>${l.length?fmt(k):"+"}</b></button>`}).join("")}</div>`}
   ${weekSummary()}`);
 }
+function pesoCard(){const l=pesoList(),u=l[l.length-1],hj=today(),feito=u&&u[0]===hj,dm=d=>d.slice(8)+"/"+d.slice(5,7);
+  return`<div class="card flush"><button class="row" data-a="go" data-v="peso"><span class="n"><b>Peso</b><small>${feito?"Hoje: "+fmt(u[1].peso,1)+" kg":u?"Último: "+fmt(u[1].peso,1)+" kg em "+dm(u[0])+" · registrar hoje":"Registrar seu peso"}</small></span><span class="mu">›</span></button></div>`}
 function weekSummary(){
   const dias=week(),hj=today();let tk=0,tg=0,n=0;
   const cells=dias.map(d=>{const k=sum(ents(d)).k,D=day(d),has=d<=hj&&k>0;let s=null;
@@ -202,11 +204,17 @@ function pesoBlock(N){
     const xy=pts.map(([d,x])=>[(new Date(d).getTime()-t0)/(t1-t0||1)*300,120-(x.peso-mn)/(mx-mn)*110]),line="M"+xy.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" L");
     chart=`<svg viewBox="0 0 300 130" width="100%" style="overflow:visible;margin-top:12px" role="img" aria-label="Gráfico de peso"><g stroke="var(--ln)" stroke-dasharray="3 4"><line x1="0" y1="30" x2="300" y2="30"/><line x1="0" y1="75" x2="300" y2="75"/><line x1="0" y1="120" x2="300" y2="120"/></g><path d="${line} L300 130 L0 130 Z" fill="var(--ac)" opacity=".12"/><path d="${line}" fill="none" stroke="var(--ac)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="300" cy="${xy[xy.length-1][1].toFixed(1)}" r="5" fill="var(--ac)"/></svg>`}
   const due=pesoDue(),dm=d=>d.slice(8)+"/"+d.slice(5,7)+"/"+d.slice(2,4);
-  return `<h2>Peso</h2><div class="card"><div class="big"><b>${big}</b><span class="mu">kg</span>${pill?`<span class="pill" style="font-size:12px">${pill}</span>`:""}</div>${chart}
+  return `  <div class="card">${due?`<div class="callout" style="margin:0 0 12px"><b class="good">⚖ ${due}</b></div>`:""}<div class="mu" style="font-size:12px;margin-bottom:6px">Registrar peso</div><div class="grid2"><div class="fld"><label for="pd">Data</label><input id="pd" type="date" value="${today()}" max="${today()}"></div><div class="fld"><label for="pw">Peso (kg)</label><input id="pw" inputmode="decimal" placeholder="Ex.: 82,4"></div></div><button class="btn" style="margin-top:12px" data-a="savePeso">Salvar peso</button></div>
+  <div class="card"><div class="big"><b>${big}</b><span class="mu">kg</span>${pill?`<span class="pill" style="font-size:12px">${pill}</span>`:""}</div>${chart}
   <div class="lbl" style="margin-top:16px">Com que frequência você quer se pesar?</div><div class="seg">${PFREQ.map(([k,n])=>`<button data-a="pesoFreq" data-f="${k}" class="${f===k?"on":""}">${n}</button>`).join("")}</div>
   <div class="mu" style="font-size:12px;margin-top:8px">${f==="livre"?"Registre quando quiser. O gráfico mostra cada pesagem.":f==="diario"?"O app avisa quando passar um dia sem registro.":f==="semanal"?"O app avisa a cada 7 dias e o gráfico mostra a média de cada semana.":"O app avisa a cada 30 dias e o gráfico mostra a média de cada mês."}</div></div>
-  <div class="card">${due?`<div class="callout" style="margin:0 0 12px"><b class="good">⚖ ${due}</b></div>`:""}<div class="mu" style="font-size:12px;margin-bottom:6px">Registrar peso</div><div class="grid2"><div class="fld"><label for="pd">Data</label><input id="pd" type="date" value="${today()}" max="${today()}"></div><div class="fld"><label for="pw">Peso (kg)</label><input id="pw" inputmode="decimal" placeholder="Ex.: 82,4"></div></div><button class="btn" style="margin-top:12px" data-a="savePeso">Salvar peso</button></div>
+
   ${all.length?`<div class="lbl">Registros recentes</div><div class="card flush">${all.slice(-8).reverse().map(([d,x])=>`<div class="dq"><span class="n"><b>${fmt(x.peso,1)} kg</b><br><small class="mu">${dm(d)}</small></span><button data-a="delPeso" data-d="${d}" aria-label="Remover registro">✕</button></div>`).join("")}</div>`:""}`;
+}
+function vPeso(){
+  const N=[7,14,30,90][hrng],pt=pesoTend();
+  return page(`<h1 style="margin-bottom:12px">Peso</h1><div class="chips">${["7 dias","14 dias","30 dias","90 dias"].map((x,i)=>`<button data-a="hrng" data-i="${i}" class="${hrng===i?"on":""}">${x}</button>`).join("")}</div>${pesoBlock(N)}
+  <div class="card"><b>Como o app usa seu peso</b><p class="mu" style="font-size:13px;margin:6px 0 0">No ajuste semanal, o app compara a média das 3 primeiras pesagens do período com a média das 3 últimas. A média evita que um dia de água ou sal engane. Pese-se de manhã, em jejum e no mesmo horário, e registre pelo menos 2 vezes na semana.${pt?` Média dos últimos 7 dias: <b>${fmt(pt,1)} kg</b>.`:""}</p>${hasPlan()?`<button class="btn ghost" style="margin-top:12px" data-a="ajusteOpen">Ver ajuste semanal ›</button>`:""}</div>`);
 }
 function vHist(){
   const N=[7,14,30,90][hrng],rows=[];
@@ -216,7 +224,7 @@ function vHist(){
   <div class="grid3" style="margin-bottom:10px"><div class="mini"><small>INGERIDAS (MÉDIA)</small><b>${fmt(rows.length?avg("k"):0)}</b></div><div class="mini"><small>GASTAS (MÉDIA)</small><b>${fmt(rows.length?gm:0)}</b></div><div class="mini"><small>SALDO</small><b class="${!rows.length?"mu":bal>0?"good":"bad"}">${rows.length?(bal>0?"+":bal<0?"−":"")+fmt(Math.abs(bal)):"—"}</b></div></div>
   <div class="grid3" style="margin-bottom:14px">${[["Proteína","p"],["Carbo","c"],["Gordura","g"]].map(([nm,f])=>`<div class="mini"><small>${nm} (média)</small><b>${fmt(rows.length?avg(f):0)}</b><small style="display:inline"> g</small></div>`).join("")}</div>
   <h2 style="margin-top:6px">Dia a dia</h2><div class="card flush">${rows.map(r=>{const near=!r.m.k||Math.abs(r.t.k-r.m.k)<=150,s=r.t.k-r.g;return`<div class="hrow"><div style="width:44px"><b>${r.d.slice(8)}/${r.d.slice(5,7)}</b><div class="mu" style="font-size:11px">${r.dt.toLocaleDateString("pt-BR",{weekday:"short"})}</div></div><div class="hbar"><div><i style="width:${Math.min(100,r.t.k/3000*100)}%;background:${near?"var(--ac)":"var(--bad)"}"></i></div><small>P ${fmt(r.t.p)} · C ${fmt(r.t.c)} · G ${fmt(r.t.g)} g${r.m.k?(near?" · na meta":r.t.k>r.m.k?" · acima da meta":" · abaixo da meta"):""}</small></div><div style="text-align:right"><b>${fmt(r.t.k)} kcal</b><div class="${s>0?"good":"bad"}" style="font-size:11px;font-weight:600">${s>0?"+":s<0?"−":""}${fmt(Math.abs(s))}</div></div></div>`}).join("")||'<p class="mu" style="padding:16px">Nenhum dia lançado neste período.</p>'}</div>
-  ${pesoBlock(N)}`);
+  `);
 }
 /* ---------- Meta automática: gasto pelo peso, calibração com dados reais, revisão semanal ---------- */
 const fmtData=d=>d.slice(8)+"/"+d.slice(5,7);
@@ -256,11 +264,14 @@ function revBaseManual(){
 function revInicio(pt){const em=((S.dieta&&S.dieta.em)||today()).slice(0,10);return{em,peso:pesoMedia(addDias(em,-6),em)||pt}}
 function revPlano(rev,pt,hj,previa){
   const dias=diasEntre(rev.em,hj),days=[];for(let i=1;i<dias;i++)days.push(addDias(rev.em,i));
-  const logged=days.filter(d=>sum(ents(d)).k>600),pesos=days.filter(d=>S.days[d]&&S.days[d].peso).length;
-  if(!(rev.peso>0)||dias<3||logged.length<Math.ceil(dias*.6)||pesos<2)return{kind:"dados",previa,dias,logged:logged.length,pesos};
+  const logged=days.filter(d=>sum(ents(d)).k>600),ws=pesoList().filter(([d])=>d>rev.em&&d<=hj).map(([d,x])=>({t:diasEntre(rev.em,d),w:x.peso})),pesos=ws.length;
+  if(dias<3||logged.length<Math.ceil(dias*.6)||pesos<2)return{kind:"dados",previa,dias,logged:logged.length,pesos};
+  const kw=Math.min(3,Math.floor(pesos/2)),m=a=>({w:a.reduce((x,y)=>x+y.w,0)/a.length,t:a.reduce((x,y)=>x+y.t,0)/a.length}),A=m(ws.slice(0,kw)),B=m(ws.slice(-kw));
+  if(B.t-A.t<2)return{kind:"dados",previa,dias,logged:logged.length,pesos};
+  rev={...rev,peso:A.w};pt=B.w;const span=B.t-A.t;
   const goal=(S.profile&&S.profile.goal)||0,ri=S.auto.ritmo??1;
   const pace=goal===0?[.0025,.005,.0075][ri]:goal===2?[.0015,.0025,.0035][ri]:0,alvo=(goal===0?-1:1)*pace*pt;
-  const real=(pt-rev.peso)/(dias/7),intake=logged.reduce((a,d)=>a+sum(ents(d)).k,0)/logged.length;
+  const real=(pt-rev.peso)/(span/7),intake=logged.reduce((a,d)=>a+sum(ents(d)).k,0)/logged.length;
   let delta=Math.round((alvo-real)*7700/7/10)*10;delta=Math.max(-150,Math.min(150,delta));
   const ok=Math.abs(delta)<80,dm=S.dieta.metas,nv={},piso=S.profile&&S.profile.sexo==="f"?1200:1500;
   for(const t of["treino","descanso"]){const m=dm[t];if(!m||!(m.k>0))continue;
@@ -275,7 +286,7 @@ function revPlano(rev,pt,hj,previa){
       if(g<gmin){c=Math.max(40,c-(gmin-g)*9/4);g=gmin}}
     nv[t]={k:Math.round(k),p:Math.round(p),c:Math.round(c),g:Math.round(g),gasto:m.gasto}}
   const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
-  return{kind:"plano",previa,nota,dias,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
+  return{kind:"plano",previa,nota,dias,kw,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
 }
 let revEdit={};
 function revDica(n,peso,goal){
@@ -320,7 +331,7 @@ function revCard(){
   if(r.kind==="dados")return`<div class="card rev"><b>Ajuste semanal${r.previa?" · prévia":""}</b><p>${r.previa?"Com os dias que você já tem":"Já se passaram "+r.dias+" dias"}, faltam dados para recalcular: ${r.logged} dia(s) com refeições lançadas e ${r.pesos} pesagem(ns) no período. Lance as refeições e pese-se com regularidade para o ajuste ser confiável. Seu plano continua valendo.</p>${r.previa?"":`<div class="frow"><button class="btn ghost" data-a="revKeep">Pular este ajuste</button></div>`}</div>`;
   if(r.kind==="plano"){const dk=r.peso-r.pesoIni,sem=r.real,f1=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v),1),T=r.nv.treino,D=r.nv.descanso,O=r.old,
     ed=(tp,n,o)=>n?`<div class="lbl" style="margin:12px 0 6px">${tp==="treino"?"Dia de treino":"Dia de descanso"} · <b id="rvk_${tp}">${fmt(n.k)} kcal</b> <span class="mu">(antes ${fmt(o.k)})</span></div><div class="grid3">${[["p","Prot. (g)"],["c","Carbo (g)"],["g","Gord. (g)"]].map(([m,l])=>field("rv_"+tp+"_"+m,l,String(n[m]),"",'inputmode="decimal"')).join("")}</div><div id="rvh_${tp}">${revDica(n,r.peso,r.goal)}</div>`:"";
-    return`<div class="card rev"><b>Ajuste semanal${r.previa?" · prévia":""}</b><p>Em ${r.dias} dias seu peso médio foi de <b>${fmt(r.pesoIni,1)}</b> para <b>${fmt(r.peso,1)} kg</b> (${f1(dk)} kg, ${f1(sem)} kg por semana). Você comeu em média <b>${fmt(r.intake)} kcal</b> nos ${r.n} dias lançados.</p>
+    return`<div class="card rev"><b>Ajuste semanal${r.previa?" · prévia":""}</b><p>Em ${r.dias} dias seu peso foi de <b>${fmt(r.pesoIni,1)}</b> para <b>${fmt(r.peso,1)} kg</b> (${f1(dk)} kg, ${f1(sem)} kg por semana). Você comeu em média <b>${fmt(r.intake)} kcal</b> nos ${r.n} dias lançados.</p><p class="mu" style="font-size:12px;margin:6px 0 0">Como é calculado: média das ${r.kw>1?r.kw+" primeiras pesagens":"primeira pesagem"} do período comparada com a média das ${r.kw>1?r.kw+" últimas":"última"}. A média evita que um dia de água ou sal engane.</p>
     <div class="mu" style="font-size:12px;margin:8px 0">Seu objetivo (toque para mudar)</div><div class="seg">${GOALS.map((n,i)=>`<button data-a="revGoal" data-i="${i}" class="${r.goal===i?"on":""}">${n}</button>`).join("")}</div>
     ${r.goal!==1?`<div class="mu" style="font-size:12px;margin:10px 0 8px">Ritmo</div><div class="seg">${RITMOS.map((n,i)=>`<button data-a="autoRitmo" data-i="${i}" class="${r.ri===i?"on":""}">${n}</button>`).join("")}</div><p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: ${r.goal===0?"perder":"ganhar"} cerca de ${fmt(Math.abs(r.alvo),2)} kg por semana.</p>`:`<p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: manter o peso.</p>`}
     ${r.ok?`<p style="margin-top:10px"><b>Você está no ritmo do seu objetivo.</b> Sugestão: manter o plano como está.</p><div class="frow"><button class="btn" data-a="revKeep">Manter o plano</button></div>`:`<p style="margin-top:10px"><b>Sugestão de ajuste.</b> ${r.nota} <b>Toque em qualquer valor para mudar</b>; as calorias se ajustam sozinhas. As faixas abaixo vêm de revisões científicas (ISSN 2017 e 2026, Helms 2014, Iraki 2019) e são referências, não regras. Se tiver dúvida, confirme com sua nutricionista.</p>${ed("treino",T,O.treino)}${ed("descanso",D,O.descanso)}<div class="frow" style="margin-top:12px"><button class="btn" data-a="revApply">Aplicar ao plano</button><button class="btn ghost" data-a="revKeep">Manter o plano</button></div><p class="mu" style="font-size:12px;margin:8px 0 0">Dá para voltar às metas originais em Ajustes. Se tiver dúvida, confirme com sua nutricionista.</p>`}</div>`}
@@ -403,7 +414,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
