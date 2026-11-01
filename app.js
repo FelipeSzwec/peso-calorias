@@ -299,7 +299,7 @@ function revPlano(rev,pt,hj,previa){
   const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
   return{kind:"plano",previa,nota,dias,kw,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
 }
-let revEdit={},trDraft=null,sdDraft=null;
+let revEdit={},trDraft=null,sdDraft=null,crop=null;
 function revDica(n,peso,goal){
   const pk=n.p/peso,ck=n.c/peso,gk=n.g/peso,gp=n.k>0?n.g*9/n.k*100:0,pz=S.profile&&S.profile.sexo==="f"?1200:1500,f1=v=>fmt(v,1);
   const L=(txt,ruim)=>`<div class="${ruim?"bad":"mu"}" style="font-size:12px;margin-top:4px">${txt}</div>`;
@@ -537,6 +537,16 @@ const TEMAS=[["escuro","Escuro"],["preto","Preto"],["claro","Claro"],["auto","Au
 function aplicarTema(){let t=S.settings.tema||"escuro";if(t==="auto")t=window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"escuro";if(!TCOR[t])t="escuro";document.documentElement.dataset.tema=t;const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",TCOR[t])}
 aplicarTema();try{matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{if(S.settings.tema==="auto")aplicarTema()})}catch(e){}
 const avatar=()=>{const p=S.profile||{};return`<label class="av" aria-label="Foto de perfil">${p.foto?`<img src="${p.foto}" alt="">`:esc((p.nome||"?").trim().charAt(0).toUpperCase()||"?")}<input type="file" id="foto_file" accept="image/*" hidden></label>`};
+const CV_=280,cropMax=()=>{const s0=CV_/Math.min(crop.w,crop.h),z=crop.z;return[Math.max(0,(crop.w*s0*z-CV_)/2),Math.max(0,(crop.h*s0*z-CV_)/2)]};
+const cropPos=()=>{const[mx,my]=cropMax();crop.ox=Math.max(-mx,Math.min(mx,crop.ox));crop.oy=Math.max(-my,Math.min(my,crop.oy));const im=document.getElementById("cropimg");if(im)im.style.transform=`translate(${crop.ox}px,${crop.oy}px) translate(-50%,-50%) scale(${crop.z})`};
+function vFotoCrop(){
+  if(!crop){view="inicio";return vInicio()}
+  const s0=CV_/Math.min(crop.w,crop.h);
+  return page(`<button class="back" data-a="fotoCancel">‹ Voltar</button><h1 style="margin-bottom:6px">Ajustar foto</h1><p class="mu" style="font-size:13px;margin:0">Arraste a foto para posicionar e use o controle para aproximar. A parte dentro do círculo é a que vai aparecer.</p>
+  <div id="cropbox" style="width:${CV_}px;height:${CV_}px;margin:18px auto;position:relative;overflow:hidden;border-radius:50%;background:#000;touch-action:none;border:2px solid var(--ac);cursor:grab"><img id="cropimg" src="${crop.src}" alt="" draggable="false" style="position:absolute;left:50%;top:50%;max-width:none;width:${crop.w*s0}px;height:${crop.h*s0}px;transform:translate(${crop.ox}px,${crop.oy}px) translate(-50%,-50%) scale(${crop.z});user-select:none;pointer-events:none"></div>
+  <div class="fld" style="max-width:${CV_}px;margin:0 auto"><label for="crop_z">Zoom</label><input id="crop_z" type="range" min="1" max="4" step="0.01" value="${crop.z}" style="padding:0"></div>
+  <div class="frow" style="max-width:${CV_}px;margin:16px auto 0"><button class="btn" data-a="fotoOk">Usar foto</button><button class="btn ghost" data-a="fotoCancel">Cancelar</button></div>`,{nonav:true});
+}
 function vInicio(){
   cur=today();
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),t=sum(ents(cur)),g=D.gasto||m.gasto,s=t.k-g,has=t.k>0,fr=Fin.homeSum(S.fin),h=new Date().getHours();
@@ -553,7 +563,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,fotocrop:vFotoCrop,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -834,6 +844,8 @@ const A={
   plan:d=>{S.settings.plan[d.k]=+d.v;save();queueState();render()},
   min:d=>{const p=S.settings.plan;p.min=Math.max(10,Math.min(240,p.min+ +d.n));save();queueState();render()},
   sexoC:d=>{S.profile.sexo=d.s;render()},goalC:d=>{S.profile.goal=+d.i;render()},
+  fotoCancel:()=>{const b=crop&&crop.back;crop=null;go(b&&b!=="fotocrop"?b:"inicio")},
+  fotoOk:()=>{if(!crop||!S.profile)return;const c=crop,s0=CV_/Math.min(c.w,c.h),s=s0*c.z,img=new Image();img.onload=()=>{const N=192,cv=document.createElement("canvas");cv.width=cv.height=N;const sz=CV_/s,sx=c.w/2-c.ox/s-sz/2,sy=c.h/2-c.oy/s-sz/2;cv.getContext("2d").drawImage(img,sx,sy,sz,sz,0,0,N,N);const d=cv.toDataURL("image/jpeg",.85);if(d.length>80000)return toast("Imagem pesada demais");S.profile.foto=d;const b=c.back;crop=null;save();queueState();go(b&&b!=="fotocrop"?b:"inicio");toast("Foto atualizada")};img.src=c.src},
   temaSet:d=>{if(!TCOR[d.t]&&d.t!=="auto")return;S.settings.tema=d.t;save();queueState();aplicarTema();render()},
   fotoDel:()=>{if(S.profile&&S.profile.foto){delete S.profile.foto;save();queueState();render();toast("Foto removida")}},
   saveCad:()=>{const p={...S.profile,nome:$("#c_nome").value.trim().slice(0,30),idade:num($("#c_idade").value),alt:num($("#c_alt").value),peso:num($("#c_peso").value)};
@@ -869,7 +881,8 @@ const A={
 };
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
-document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
+document.addEventListener("input",e=>{if(e.target.id==="crop_z"&&crop){crop.z=+e.target.value||1;cropPos();return}
+  if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
   else if(sdDraft&&/^sx_/.test(e.target.id||"")){const id=e.target.id;if(id==="sx_data")sdDraft.data=e.target.value;else if(id==="sx_lab")sdDraft.lab=e.target.value;else{const[,i,k]=id.split("_");if(sdDraft.itens[+i])sdDraft.itens[+i][k]=e.target.value}}
   else if(trDraft&&/^tx_/.test(e.target.id||"")){const id=e.target.id;if(id==="tx_nome")trDraft.nome=e.target.value;else{const[,i,k]=id.split("_");if(trDraft.ex[+i])trDraft.ex[+i][k]=e.target.value}}
   else if(nf&&/^nf_([nkpcf]|p[nq]\d|x[adfstn])$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
@@ -883,7 +896,7 @@ document.addEventListener("change",e=>{
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
   if(t.id==="foto_file"&&t.files[0]){const f=t.files[0];t.value="";if(!S.profile)return;if(!/^image\//.test(f.type))return toast("Escolha uma imagem");
-    const rd=new FileReader();rd.onerror=()=>toast("Não consegui abrir essa imagem");rd.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas"),N=192;c.width=c.height=N;const x=c.getContext("2d"),m=Math.min(img.width,img.height),sx=(img.width-m)/2,sy=(img.height-m)/2;x.drawImage(img,sx,sy,m,m,0,0,N,N);const d=c.toDataURL("image/jpeg",.82);if(d.length>80000)return toast("Imagem pesada demais");S.profile.foto=d;save();queueState();render();toast("Foto atualizada")};img.onerror=()=>toast("Não consegui abrir essa imagem");img.src=rd.result};rd.readAsDataURL(f);return}
+    const rd=new FileReader();rd.onerror=()=>toast("Não consegui abrir essa imagem");rd.onload=()=>{const img=new Image();img.onload=()=>{const M=1024,k=Math.min(1,M/Math.max(img.width,img.height)),w=Math.round(img.width*k),h=Math.round(img.height*k),c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);crop={src:c.toDataURL("image/jpeg",.9),w,h,z:1,ox:0,oy:0,back:view};go("fotocrop")};img.onerror=()=>toast("Não consegui abrir essa imagem");img.src=rd.result};rd.readAsDataURL(f);return}
   if(t.dataset.dp!==undefined){const x=draft[+t.dataset.dp];if(x){x.pi=t.value===""?null:+t.value;if(x.pi!=null&&!(x.q>0))x.q=1;render()}return}
   if(t.dataset.di!==undefined)return;
   if(t.id==="sa_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo o PDF...");
@@ -926,5 +939,12 @@ function remind(){clearTimeout(rt);if(S.settings.pushOn||!S.settings.lembrete||!
   try{BASE=await (await fetch("foods.json")).json()}catch(e){toast("Não foi possível carregar a lista de alimentos")}
   setStat(false,Cloud.on()?(S.session?"Conectando...":"Entre na conta"):"Neste aparelho");
   render();remind();Cloud.sync();
+})();
+/* ---------- Recorte da foto: arrastar para posicionar ---------- */
+(()=>{let d=null;
+  document.addEventListener("pointerdown",e=>{const b=e.target.closest&&e.target.closest("#cropbox");if(!b||!crop)return;d={x:e.clientX,y:e.clientY,ox:crop.ox,oy:crop.oy};try{b.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()});
+  document.addEventListener("pointermove",e=>{if(!d||!crop)return;crop.ox=d.ox+(e.clientX-d.x);crop.oy=d.oy+(e.clientY-d.y);cropPos()});
+  const fim=()=>{d=null};document.addEventListener("pointerup",fim);document.addEventListener("pointercancel",fim);
+  document.addEventListener("wheel",e=>{if(!crop||!e.target.closest||!e.target.closest("#cropbox"))return;e.preventDefault();crop.z=Math.max(1,Math.min(4,crop.z-e.deltaY/500));const r=document.getElementById("crop_z");if(r)r.value=crop.z;cropPos()},{passive:false});
 })();
 })();
