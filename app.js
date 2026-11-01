@@ -114,8 +114,8 @@ const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes"
 const go=v=>{if(v!=="ajuste")revForce=false;view=v;pinBuf="";render()};
 
 const FINV=["fresumo","fcontas","fviagem"],TREV=["treino","thist","tplano"];
-const nav=()=>{const tabs=FINV.includes(view)?[["fresumo","Resumo"],["fcontas","Contas"],["fviagem","Viagem"]]:TREV.includes(view)?[["treino","Hoje"],["thist","Histórico"],["tplano","Plano"]]:[["hoje","Hoje"],["lancar","Lançar"],["peso","Peso"],["hist","Histórico"]];
-  return `<nav><button data-a="go" data-v="inicio"><i></i>Início</button>${tabs.map(([k,n])=>`<button data-a="go" data-v="${k}" class="${view===k?"on":""}"><i></i>${n}</button>`).join("")}</nav>`};
+const nav=()=>{const tabs=FINV.includes(view)?[["fresumo","Resumo"],["fcontas","Contas"],["fviagem","Viagem"]]:TREV.includes(view)?[["treino","Hoje"],["thist","Histórico"],["tplano","Plano"]]:[["hoje","Hoje"],["peso","Peso"],["hist","Histórico"]];
+  return `<nav><button data-a="go" data-v="inicio"><i></i>Início</button>${tabs.map(([k,n])=>`<button data-a="go" data-v="${k}" class="${view===k||(k==="hoje"&&view==="lancar")?"on":""}"><i></i>${n}</button>`).join("")}</nav>`};
 const page=(body,{back,nonav}={})=>{const up=back||(nonav?"":view==="lancar"?"hoje":"inicio");return `<div class="scroll">${up?`<button class="back" data-a="go" data-v="${up}">‹ Voltar</button>`:""}${body}</div>${back||nonav?"":nav()}`};
 const pad=()=>`<div class="pins">${[0,1,2,3].map(i=>`<i class="${i===pinBuf.length?"cur":""}">${pinBuf[i]?"●":""}</i>`).join("")}</div><div class="keys">${["1","2","3","4","5","6","7","8","9","","0","⌫"].map(k=>k?`<button data-a="key" data-k="${k}" aria-label="${k}">${k}</button>`:"<span></span>").join("")}</div>`;
 const field=(id,label,val="",ph="",extra="")=>`<div class="fld"><label for="${id}">${label}</label><input id="${id}" value="${esc(val)}" placeholder="${esc(ph)}" ${extra}></div>`;
