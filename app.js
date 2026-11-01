@@ -13,7 +13,7 @@ const toast=t=>{const e=$("#toast");e.textContent=t;e.classList.add("on");clearT
 
 /* ---------- Estado local (offline primeiro) ---------- */
 const KEY="pc3";
-const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null}};
+const DEF={onboarded:false,profile:null,settings:{meals:["1ª refeição","2ª refeição","3ª refeição","4ª refeição"],pinHash:null,pinSalt:null,lembrete:false,wifi:false,plan:{dias:4,min:60,int:1},semIni:1,pesoFreq:"livre"},customFoods:[],entries:[],days:{},outbox:[],last:null,session:null,usage:{},imported:{},localOnly:false,dieta:null,fin:null,auto:{on:false,ritmo:1,applied:null,lastRev:null,base:null,rev:null}};
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){S={}}
 S={...structuredClone(DEF),...S};S.settings={...DEF.settings,...S.settings,plan:{...DEF.settings.plan,...(S.settings||{}).plan}};
@@ -91,7 +91,7 @@ const sum=l=>l.reduce((a,e)=>({k:a.k+e.k,p:a.p+e.p,c:a.c+e.c,g:a.g+e.g}),{k:0,p:
 const pesoList=()=>Object.entries(S.days).filter(([,d])=>d.peso).sort((a,b)=>a[0]<b[0]?-1:1);
 function pesoTend(){const l=pesoList();if(!l.length)return null;const lim=new Date();lim.setDate(lim.getDate()-6);const w=l.filter(([d])=>d>=iso(lim)).map(([,x])=>x.peso);return w.length?w.reduce((a,b)=>a+b,0)/w.length:l[l.length-1][1].peso}
 function calcGasto(){const p0=S.profile;if(!p0)return null;const p={...p0,peso:pesoTend()||p0.peso};const tmb=10*p.peso+6.25*p.alt-5*p.idade+(p.sexo==="f"?-161:5),rest=tmb*1.2,pl=S.settings.plan,MET=[4.5,6,8][pl.int],extra=pl.dias>0?(MET-1)*p.peso*pl.min/60:0;return{tmb,rest,trein:rest+extra,extra,peso:p.peso}}
-function metaFor(tipo){const c=calcGasto(),k=tipo==="Treino"?"treino":"descanso",ap=S.auto.on&&S.auto.applied&&S.auto.applied[k];
+function metaFor(tipo){const c=calcGasto(),k=tipo==="Treino"?"treino":"descanso",ap=!hasPlan()&&S.auto.on&&S.auto.applied&&S.auto.applied[k];
   if(ap&&ap.k>0&&c){const g=tipo==="Treino"?c.trein:c.rest;return{k:ap.k,p:ap.p,c:ap.c,g:ap.g,gasto:Math.round(g),auto:true}}
   const pm=S.dieta&&S.dieta.metas,pk=pm&&(pm[k]||pm.treino||pm.descanso);
   if(pk&&pk.k>0){const g=pk.gasto>0?pk.gasto:c?(tipo==="Treino"?c.trein:c.rest):0;return{k:Math.round(pk.k),p:Math.round(pk.p),c:Math.round(pk.c),g:Math.round(pk.g),gasto:Math.round(g),plano:true}}
@@ -108,7 +108,7 @@ function parseQ(t){const m=t.trim().match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|un\w*
 /* ---------- Navegação e estado de tela ---------- */
 const today=()=>iso(new Date());
 const needLogin=()=>Cloud.on()&&!S.session&&!S.localOnly;
-let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
+let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],nf=null,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
 let ob={step:0,goal:0,sexo:"m",nome:"",idade:"",alt:"",peso:"",email:"",pw:""};
 const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes",cad:"ajustes",conta:"ajustes",setpin:"ajustes"};
 const go=v=>{view=v;pinBuf="";render()};
@@ -147,7 +147,7 @@ function vHoje(){
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),es=ents(cur),t=sum(es),dt=new Date(cur+"T12:00:00");
   return page(`<div class="top"><div><div class="mu">${cur===today()?"Hoje, ":""}${dt.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>Nutrição</h1></div><span class="chip"><i class="dot ${stat.ok?"ok":""}"></i>${esc(stat.t)}</span></div>
   <div class="dnav"><button data-a="day" data-n="-1" aria-label="Dia anterior">‹</button><button class="tipochip" data-a="go" data-v="treino"><b>${tipo==="Treino"?"Dia de treino":"Dia de descanso"}</b><small>alterar no Treino ›</small></button><button data-a="day" data-n="1" aria-label="Próximo dia" ${cur>=today()?"disabled style='opacity:.3'":""}>›</button></div>
-  ${revCard()}${ringCard(t,m,D)}
+  ${revBanner()}${ringCard(t,m,D)}
   <div class="grid3">${[["Proteína","p"],["Carbo","c"],["Gordura","g"]].map(([n,f])=>`<div class="mini"><small>${n}</small><b>${fmt(t[f])}</b><small style="display:inline"> g</small>${m[f]?`<div class="bar"><i style="width:${Math.min(100,t[f]/m[f]*100)}%"></i></div>`:""}${m[f]?`<small class="${m[f]>=t[f]?"mu":"bad"}" style="display:block;margin-top:6px">${m[f]>=t[f]?"faltam "+fmt(m[f]-t[f]):"passou "+fmt(t[f]-m[f])} g</small>`:""}</div>`).join("")}</div>
   <div class="rh"><h2>Refeições</h2><button class="lk" data-a="mealEdit">${editMeals?"Concluir":"Editar"}</button></div>${editMeals?`<div class="card flush">${S.settings.meals.map((ml,i)=>`<div class="dq"><input class="mn" data-mi="${i}" value="${esc(ml)}" maxlength="30" aria-label="Nome da refeição ${i+1}"><button data-a="mealDel" data-i="${i}" aria-label="Remover ${esc(ml)}">✕</button></div>`).join("")}</div><button class="btn ghost" data-a="mealAdd">＋ Adicionar refeição</button><p class="mu" style="font-size:12px;margin:8px 4px 0">Toque no nome para renomear. Ao remover uma refeição, o que foi lançado nela passa para a refeição anterior.</p>`:`<div class="card flush">${S.settings.meals.map((ml,i)=>{const l=es.filter(e=>e.meal===ml),k=sum(l).k;return`<button class="row" data-a="meal" data-i="${i}"><span class="ck ${l.length?"on":""}">${l.length?"✓":""}</span><span class="n"><b>${esc(ml)}</b><small>${l.length?`${l.length} ${l.length>1?"itens":"item"}`:"Não lançado"}</small></span><b>${l.length?fmt(k):"+"}</b></button>`}).join("")}</div>`}
   ${weekSummary()}`);
@@ -172,8 +172,9 @@ function vLancar(){
   return page(`<h1 style="margin-bottom:14px">Lançar</h1><div class="chips">${S.settings.meals.map((m,i)=>`<button data-a="meal" data-i="${i}" data-stay="1" class="${i===meal?"on":""}">${esc(m)}</button>`).join("")}</div>
   ${planBox()}
   <input id="q" value="${esc(q)}" placeholder="Buscar ou digitar “200 g de arroz”" autocomplete="off" enterkeyhint="search">
+  ${nf?`<div class="card" style="margin-top:10px"><div class="lbl" style="margin-top:0">Novo alimento · valores por 100 g</div>${field("nf_n","Nome",nf.n||"","Ex.: Pão integral",'maxlength="60"')}<div class="grid2">${field("nf_k","Calorias (kcal)",nf.k||"","",'inputmode="decimal"')}${field("nf_p","Proteína (g)",nf.p||"","",'inputmode="decimal"')}${field("nf_c","Carbo (g)",nf.c||"","",'inputmode="decimal"')}${field("nf_f","Gordura (g)",nf.f||"","",'inputmode="decimal"')}</div><div class="frow"><button class="btn" data-a="nfSave">Salvar alimento</button><button class="btn ghost" data-a="nfCancel">Cancelar</button></div></div>`:`<button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>`}
   ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
-  ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" inputmode="decimal" aria-label="Quantidade"><span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span><button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
+  ${draft.length?`<div class="lbl">Montando</div><div class="card flush">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" placeholder="Qtd" inputmode="decimal" aria-label="Quantidade"><span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span><button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   <div class="lbl">${q?"Resultados":"Mais usados"}</div><div id="res">${foodList()}</div>
   ${draft.length?`<div class="sticky"><div class="in"><span>${draft.length} ${draft.length>1?"itens":"item"} · ${fmt(t)} kcal</span><button data-a="saveDraft">Salvar refeição</button></div></div>`:""}`);
 }
@@ -218,6 +219,7 @@ function vHist(){
   ${pesoBlock(N)}`);
 }
 /* ---------- Meta automática: gasto pelo peso, calibração com dados reais, revisão semanal ---------- */
+const fmtData=d=>d.slice(8)+"/"+d.slice(5,7);
 const diasEntre=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5);
 const hasPlan=()=>{const m=S.dieta&&S.dieta.metas;return!!(m&&((m.treino&&m.treino.k>0)||(m.descanso&&m.descanso.k>0)))};
 const GOALS=["Perder peso","Manter o peso","Ganhar massa"],RITMOS=["Leve","Moderado","Rápido"];
@@ -244,35 +246,87 @@ function engineMeta(tipo,fator){
 }
 function novaMeta(){const cal=calibrar(),f=cal.ok?cal.fator:1;return{cal,nv:{treino:engineMeta("Treino",f),descanso:engineMeta("Descanso",f)}}}
 let revPend=null;
+const addDias=(d,n)=>{const t=new Date(d+"T12:00:00");t.setDate(t.getDate()+n);return iso(t)};
+const pesoMedia=(a,b)=>{const w=pesoList().filter(([d])=>d>=a&&d<=b).map(([,x])=>x.peso);return w.length?w.reduce((x,y)=>x+y,0)/w.length:null};
+/* Revisao semanal do plano alimentar: o plano manda; o app so SUGERE um ajuste, que so vale se voce aceitar. */
+function revInicio(pt){const em=((S.dieta&&S.dieta.em)||today()).slice(0,10);return{em,peso:pesoMedia(addDias(em,-6),em)||pt}}
+function revPlano(rev,pt,hj){
+  const dias=diasEntre(rev.em,hj),days=[];for(let i=1;i<=dias;i++)days.push(addDias(rev.em,i));
+  const logged=days.filter(d=>sum(ents(d)).k>600),pesos=days.filter(d=>S.days[d]&&S.days[d].peso).length;
+  if(logged.length<Math.ceil(dias*.6)||pesos<2)return{kind:"dados",dias,logged:logged.length,pesos};
+  const goal=(S.profile&&S.profile.goal)||0,ri=S.auto.ritmo??1;
+  const pace=goal===0?[.0025,.005,.0075][ri]:goal===2?[.0015,.0025,.0035][ri]:0,alvo=(goal===0?-1:1)*pace*pt;
+  const real=(pt-rev.peso)/(dias/7),intake=logged.reduce((a,d)=>a+sum(ents(d)).k,0)/logged.length;
+  let delta=Math.round((alvo-real)*7700/7/10)*10;delta=Math.max(-150,Math.min(150,delta));
+  const ok=Math.abs(delta)<80,dm=S.dieta.metas,nv={},piso=S.profile&&S.profile.sexo==="f"?1200:1500;
+  for(const t of["treino","descanso"]){const m=dm[t];if(!m||!(m.k>0))continue;
+    const k=Math.max(Math.min(piso,m.k),m.k+(ok?0:delta)),d=k-m.k;let p=m.p,c=m.c,g=m.g;
+    if(!ok){
+      let dp=0;
+      if(goal===0&&d<0&&p/pt<2.6)dp=10;
+      else if(goal!==0&&p/pt<1.6)dp=Math.min(30,Math.ceil(1.6*pt-p));
+      const rest=d-4*dp,cs=goal===2?.8:.7;
+      p+=dp;c=Math.max(40,c+cs*rest/4);g=Math.max(30,g+(1-cs)*rest/9);
+      const gmin=goal===0?.15*k/9:.5*pt;
+      if(g<gmin){c=Math.max(40,c-(gmin-g)*9/4);g=gmin}}
+    nv[t]={k:Math.round(k),p:Math.round(p),c:Math.round(c),g:Math.round(g),gasto:m.gasto}}
+  const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
+  return{kind:"plano",nota,dias,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
+}
+let revEdit={};
+function revDica(n,peso,goal){
+  const pk=n.p/peso,ck=n.c/peso,gk=n.g/peso,gp=n.k>0?n.g*9/n.k*100:0,pz=S.profile&&S.profile.sexo==="f"?1200:1500,f1=v=>fmt(v,1);
+  const L=(txt,ruim)=>`<div class="${ruim?"bad":"mu"}" style="font-size:12px;margin-top:4px">${txt}</div>`;
+  let pm,pr=false,gm,gr=false,cm,cr=false;
+  if(goal===0){
+    if(pk<1.6){pm="abaixo do usual (1,6 a 2,2 g/kg)";pr=true}else if(pk<=2.2)pm="faixa mais usada (1,6 a 2,2 g/kg)";else if(pk<=3.2)pm="faixa alta, usada em déficit por quem já é magro e treina";else{pm="acima do que os estudos mostram ser útil (até cerca de 3,2 g/kg)";pr=true}
+    if(gp<15){gm="abaixo de 15% das calorias (faixa estudada: 15 a 30%)";gr=true}else if(gp>30){gm="acima de 30% das calorias (faixa estudada: 15 a 30%)";gr=true}else gm="dentro de 15 a 30% das calorias";
+    cm="o que sobra das calorias"}
+  else{
+    if(pk<1.6){pm="abaixo do usual (1,6 a 2,2 g/kg)";pr=true}else if(pk<=2.2)pm="dentro da faixa estudada (1,6 a 2,2 g/kg)";else{pm="acima da faixa estudada (1,6 a 2,2 g/kg); sem benefício extra comprovado para ganho de massa";pr=true}
+    if(gk<.5){gm="abaixo de 0,5 g/kg (faixa estudada: 0,5 a 1,5)";gr=true}else if(gk>1.5){gm="acima de 1,5 g/kg (faixa estudada: 0,5 a 1,5)";gr=true}else gm="dentro de 0,5 a 1,5 g/kg";
+    if(ck<3){cm="abaixo de 3 g/kg, mínimo sugerido para sustentar o treino";cr=true}else cm="a partir de 3 g/kg, suficiente para o treino"}
+  return L(`Proteína: <b>${f1(pk)} g/kg</b> · ${pm}`,pr)+L(`Gordura: <b>${f1(gk)} g/kg</b> (${fmt(gp)}% das calorias) · ${gm}`,gr)+L(`Carboidrato: <b>${f1(ck)} g/kg</b> · ${cm}`,cr)+(n.k<pz?L(`Abaixo do piso de segurança de ${fmt(pz)} kcal.`,true):"")}
+function revRefresh(){autoTick();const r=revPend;if(!r||r.kind!=="plano"||r.ok)return;for(const t in r.nv){const k=document.getElementById("rvk_"+t),h=document.getElementById("rvh_"+t);if(k)k.textContent=fmt(r.nv[t].k)+" kcal";if(h)h.innerHTML=revDica(r.nv[t],r.peso,r.goal)}}
+function revEditAplicar(r){if(!r||r.kind!=="plano"||r.ok)return;for(const t in r.nv){const n=r.nv[t],b={...n};let ch=false;for(const m of["p","c","g"]){const v=revEdit[t+m];if(v!=null){n[m]=v;ch=true}}if(ch)n.k=Math.round(b.k+4*(n.p-b.p)+4*(n.c-b.c)+9*(n.g-b.g))}}
 function autoTick(){
   revPend=null;const a=S.auto,c=calcGasto();if(!c||!pesoList().length)return;
-  const hj=today(),plan=hasPlan()&&!a.on;if(!plan&&!a.on)return;
-  const cur={treino:Math.round(c.trein),descanso:Math.round(c.rest)};
-  if(plan&&!a.base){a.base=cur;a.lastRev=hj;save();queueState();return}
+  const hj=today();
+  if(hasPlan()){
+    const pt=pesoTend();if(!pt)return;
+    if(!a.rev){a.rev=revInicio(pt);save();queueState();return}
+    if(diasEntre(a.rev.em,hj)<7)return;
+    revPend=revPlano(a.rev,pt,hj);revEditAplicar(revPend);return}
+  if(!a.on)return;
   if(a.lastRev&&diasEntre(a.lastRev,hj)<7)return;
-  if(plan){
-    const dT=cur.treino-a.base.treino,dD=cur.descanso-a.base.descanso;
-    if(Math.abs(dT)<60&&Math.abs(dD)<60){a.lastRev=hj;save();queueState();return}
-    revPend={kind:"plan",cur,dT,dD,peso:c.peso};
-  }else{
-    const{cal,nv}=novaMeta(),old=a.applied;
-    if(old&&Math.abs(nv.treino.k-old.treino.k)<40&&Math.abs(nv.descanso.k-old.descanso.k)<40){a.lastRev=hj;save();queueState();return}
-    revPend={kind:"auto",nv,old,cal,peso:c.peso};
-  }
+  const{cal,nv}=novaMeta(),old=a.applied;
+  if(old&&Math.abs(nv.treino.k-old.treino.k)<40&&Math.abs(nv.descanso.k-old.descanso.k)<40){a.lastRev=hj;save();queueState();return}
+  revPend={kind:"auto",nv,old,cal,peso:c.peso};
 }
 const sgn=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v));
+function revBanner(){
+  const r=revPend;if(!r)return"";
+  const sub=r.kind==="plano"?(r.ok?"Você está no ritmo do seu objetivo":"Sugestão disponível para esta semana"):r.kind==="dados"?"Faltam dados para recalcular":"Nova meta estimada disponível";
+  return`<div class="card flush rev"><button class="row" data-a="go" data-v="ajuste"><span class="n"><b>Ajuste semanal</b><small>${sub}</small></span><span class="mu">›</span></button></div>`}
+function vAjuste(){return page(revPend?revCard():`<h1>Ajuste semanal</h1><p class="mu">Nenhum ajuste pendente agora.</p>`,{back:"hoje"})}
 function revCard(){
   const r=revPend;if(!r)return"";
-  if(r.kind==="plan")return`<div class="card rev"><b>Seus gastos foram atualizados</b><p>Seu peso médio da semana é ${fmt(r.peso,1)} kg. Gasto em dia de descanso: <b>${fmt(r.cur.descanso)} kcal</b> (${sgn(r.dD)}). Em dia de treino: <b>${fmt(r.cur.treino)} kcal</b> (${sgn(r.dT)}).</p><p>Quer manter a meta do plano atual ou atualizar? Ao atualizar, a meta acompanha a diferença de gasto e mantém o mesmo déficit ou superávit do seu plano. Se tiver dúvida, confirme com sua nutricionista.</p><div class="frow"><button class="btn" data-a="revApply">Atualizar</button><button class="btn ghost" data-a="revKeep">Manter o plano</button></div></div>`;
+  if(r.kind==="dados")return`<div class="card rev"><b>Ajuste semanal</b><p>Já se passaram ${r.dias} dias, mas faltam dados para recalcular: ${r.logged} dia(s) com refeições lançadas e ${r.pesos} pesagem(ns). Lance as refeições e pese-se com regularidade para o ajuste ser confiável. Seu plano continua valendo.</p><div class="frow"><button class="btn ghost" data-a="revKeep">Pular este ajuste</button></div></div>`;
+  if(r.kind==="plano"){const dk=r.peso-r.pesoIni,sem=r.real,f1=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v),1),T=r.nv.treino,D=r.nv.descanso,O=r.old,
+    ed=(tp,n,o)=>n?`<div class="lbl" style="margin:12px 0 6px">${tp==="treino"?"Dia de treino":"Dia de descanso"} · <b id="rvk_${tp}">${fmt(n.k)} kcal</b> <span class="mu">(antes ${fmt(o.k)})</span></div><div class="grid3">${[["p","Prot. (g)"],["c","Carbo (g)"],["g","Gord. (g)"]].map(([m,l])=>field("rv_"+tp+"_"+m,l,String(n[m]),"",'inputmode="decimal"')).join("")}</div><div id="rvh_${tp}">${revDica(n,r.peso,r.goal)}</div>`:"";
+    return`<div class="card rev"><b>Ajuste semanal</b><p>Em ${r.dias} dias seu peso médio foi de <b>${fmt(r.pesoIni,1)}</b> para <b>${fmt(r.peso,1)} kg</b> (${f1(dk)} kg, ${f1(sem)} kg por semana). Você comeu em média <b>${fmt(r.intake)} kcal</b> nos ${r.n} dias lançados.</p>
+    <div class="mu" style="font-size:12px;margin:8px 0">Seu objetivo (toque para mudar)</div><div class="seg">${GOALS.map((n,i)=>`<button data-a="revGoal" data-i="${i}" class="${r.goal===i?"on":""}">${n}</button>`).join("")}</div>
+    ${r.goal!==1?`<div class="mu" style="font-size:12px;margin:10px 0 8px">Ritmo</div><div class="seg">${RITMOS.map((n,i)=>`<button data-a="autoRitmo" data-i="${i}" class="${r.ri===i?"on":""}">${n}</button>`).join("")}</div><p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: ${r.goal===0?"perder":"ganhar"} cerca de ${fmt(Math.abs(r.alvo),2)} kg por semana.</p>`:`<p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: manter o peso.</p>`}
+    ${r.ok?`<p style="margin-top:10px"><b>Você está no ritmo do seu objetivo.</b> Sugestão: manter o plano como está.</p><div class="frow"><button class="btn" data-a="revKeep">Manter o plano</button></div>`:`<p style="margin-top:10px"><b>Sugestão de ajuste.</b> ${r.nota} <b>Toque em qualquer valor para mudar</b>; as calorias se ajustam sozinhas. As faixas abaixo vêm de revisões científicas (ISSN 2017 e 2026, Helms 2014, Iraki 2019) e são referências, não regras. Se tiver dúvida, confirme com sua nutricionista.</p>${ed("treino",T,O.treino)}${ed("descanso",D,O.descanso)}<div class="frow" style="margin-top:12px"><button class="btn" data-a="revApply">Aplicar ao plano</button><button class="btn ghost" data-a="revKeep">Manter o plano</button></div><p class="mu" style="font-size:12px;margin:8px 0 0">Dá para voltar às metas originais em Ajustes. Se tiver dúvida, confirme com sua nutricionista.</p>`}</div>`}
   const o=r.old,d=r.nv.descanso,t=r.nv.treino;
-  return`<div class="card rev"><b>Revisão semanal da meta</b><p>Seu peso médio da semana é ${fmt(r.peso,1)} kg. Nova meta estimada: <b>${fmt(d.k)} kcal</b> em dia de descanso e <b>${fmt(t.k)} kcal</b> em dia de treino${o?` (antes: ${fmt(o.descanso.k)} e ${fmt(o.treino.k)})`:""}.</p>${r.cal.ok?`<p class="mu">Calibrada com seus dados: gasto real estimado de ${fmt(r.cal.real)} kcal por dia.</p>`:""}<div class="frow"><button class="btn" data-a="revApply">Atualizar</button><button class="btn ghost" data-a="revKeep">Manter a atual</button></div></div>`;
+  return`<div class="card rev"><b>Ajuste semanal da meta</b><p>Seu peso médio da semana é ${fmt(r.peso,1)} kg. Nova meta estimada: <b>${fmt(d.k)} kcal</b> em dia de descanso e <b>${fmt(t.k)} kcal</b> em dia de treino${o?` (antes: ${fmt(o.descanso.k)} e ${fmt(o.treino.k)})`:""}.</p>${r.cal.ok?`<p class="mu">Calibrada com seus dados: gasto real estimado de ${fmt(r.cal.real)} kcal por dia.</p>`:""}<div class="frow"><button class="btn" data-a="revApply">Atualizar</button><button class="btn ghost" data-a="revKeep">Manter a atual</button></div></div>`;
 }
 function vAuto(){
   const c=calcGasto(),a=S.auto,goal=(S.profile&&S.profile.goal)||0,pt=pesoTend(),cal=c?calibrar():{ok:false,msg:"Complete o cadastro."},ap=a.applied;
   const lk=(k,v)=>`<div class="calc"><span>${k}</span><b>${v}</b></div>`;
   return page(`<h1>Meta automática</h1><p class="mu" style="margin:4px 0 16px;font-size:13px">Uma estimativa do quanto comer, calculada pelo seu peso, seu gasto e seu objetivo. Não substitui a orientação de um nutricionista.</p>
-  <div class="card flush"><button class="row" data-a="autoToggle"><span class="n"><b>Usar meta automática</b><small>${a.on?(hasPlan()?"Ligada: vale no lugar do plano alimentar":"Ligada: a meta aparece na Nutrição"):(hasPlan()?"Desligada: vale a meta do seu plano alimentar":"Desligada: o app só mostra o que você ingeriu")}</small></span><span class="tg ${a.on?"on":""}"></span></button></div>
-  ${hasPlan()?`<div class="card"><b>${a.on?"Você escolheu a meta automática":"Seu plano alimentar manda"}</b><p class="mu" style="font-size:13px;margin:6px 0 0">${a.on?"O plano continua guardado, mas a meta de calorias e macros é a automática. Para voltar ao plano, desligue a meta automática acima.":"Toda semana o app confere seu peso médio e, se o seu gasto mudou, pergunta se você quer manter o plano ou atualizar. Ao atualizar, a meta acompanha a diferença de gasto e mantém o mesmo déficit ou superávit. Se preferir a estimativa do app, ligue a meta automática acima."}</p>${S.dieta.metasPlano?`<button class="btn ghost" style="margin-top:12px" data-a="revReset">Voltar às metas originais do plano</button>`:""}</div>`:""}
+  ${hasPlan()?"":`<div class="card flush"><button class="row" data-a="autoToggle"><span class="n"><b>Usar meta automática</b><small>${a.on?"Ligada: a meta aparece na Nutrição":"Desligada: o app só mostra o que você ingeriu"}</small></span><span class="tg ${a.on?"on":""}"></span></button></div>`}
+  ${hasPlan()?`<div class="card"><b>Seu plano alimentar manda</b><p class="mu" style="font-size:13px;margin:6px 0 0">As metas de calorias e macros da tela Hoje e do histórico são sempre as do seu plano. Toda semana o app compara seu peso e o que você comeu com o seu objetivo e <b>sugere</b> um ajuste. Nada muda sem você aceitar.${a.rev?` Próximo ajuste: <b>${fmtData(addDias(a.rev.em,7))}</b>.`:""}</p>${S.dieta.metasPlano?`<button class="btn ghost" style="margin-top:12px" data-a="revReset">Voltar às metas originais do plano</button>`:""}</div>`:""}
   <div class="card"><div class="mu" style="font-size:12px;margin-bottom:6px">Seu objetivo (do cadastro)</div><b>${GOALS[goal]}</b>${goal!==1?`<div class="mu" style="font-size:12px;margin:14px 0 8px">Ritmo</div><div class="seg">${RITMOS.map((n,i)=>`<button data-a="autoRitmo" data-i="${i}" class="${(a.ritmo??1)===i?"on":""}">${n}</button>`).join("")}</div><div class="mu" style="font-size:12px;margin-top:8px">${goal===0?"Perda de cerca de "+["0,25%","0,5%","0,75%"][a.ritmo??1]+" do peso por semana.":"Ganho de cerca de "+["0,15%","0,25%","0,35%"][a.ritmo??1]+" do peso por semana."}</div>`:""}</div>
   ${a.on&&ap?`<div class="card"><div class="lbl" style="margin-top:0">Meta atual</div>${lk("Dia de descanso",fmt(ap.descanso.k)+" kcal")}${lk("Dia de treino",fmt(ap.treino.k)+" kcal")}${lk("Proteína · Carbo · Gordura",fmt(ap.descanso.p)+" · "+fmt(ap.descanso.c)+" · "+fmt(ap.descanso.g)+" g")}${ap.descanso.limited||ap.treino.limited?`<p class="mu" style="font-size:12px;margin:8px 0 0">Limitada pelo piso de segurança (taxa metabólica basal).</p>`:""}<p class="mu" style="font-size:12px;margin:8px 0 0">Atualizada em ${ap.em?ap.em.slice(8)+"/"+ap.em.slice(5,7):"—"}. Os macros acima são do dia de descanso.</p><button class="btn ghost" style="margin-top:12px" data-a="autoNow">Recalcular agora</button></div>`:""}
   <div class="card"><div class="lbl" style="margin-top:0">Seus dados</div>${lk("Peso médio (7 dias)",pt?fmt(pt,1)+" kg":"—")}${c?lk("Gasto estimado, descanso",fmt(c.rest)+" kcal")+lk("Gasto estimado, treino",fmt(c.trein)+" kcal"):""}${cal.ok?lk("Gasto real estimado",fmt(cal.real)+" kcal")+`<p class="mu" style="font-size:12px;margin:8px 0 0">Calculado pelo que você comeu e pela variação do seu peso em 3 semanas. Vale se você lançou tudo o que comeu.</p>`:`<p class="mu" style="font-size:12px;margin:8px 0 0">Calibração com seus dados: ${esc(cal.msg)}</p>`}</div>
@@ -281,8 +335,8 @@ function vAuto(){
   <p class="how"><b>2. Ajuste com os seus dados.</b> Com pelo menos 14 dias de refeições lançadas nas últimas 3 semanas e pesagens no começo e no fim, o app calcula o gasto real: média de calorias ingeridas menos (variação do peso em kg × 7.700 ÷ 14 dias). O gasto estimado é corrigido em 60% da diferença, no máximo 20% para cima ou para baixo.</p>
   <p class="how"><b>3. Meta de calorias.</b> Gasto do dia, menos um déficit se o objetivo é perder peso (0,25%, 0,5% ou 0,75% do peso por semana, conforme o ritmo, até no máximo 25% do gasto), ou mais um superávit se é ganhar massa (0,15%, 0,25% ou 0,35%, até 15%). Para manter o peso, a meta é o próprio gasto. O valor é arredondado de 10 em 10 e nunca fica abaixo da taxa metabólica basal, nem de 1.500 kcal (homens) ou 1.200 kcal (mulheres).</p>
   <p class="how"><b>4. Macros.</b> Proteína 1,8 g por kg, gordura 0,9 g por kg e o restante em carboidrato.</p>
-  <p class="how"><b>5. Quando a meta muda.</b> A cada 7 dias o app recalcula usando a média do peso. Com a meta automática ligada, se a meta mudar 40 kcal ou mais, aparece um aviso na tela inicial e na Nutrição. <b>Nada muda sem a sua confirmação.</b></p>
-  <p class="how"><b>Plano alimentar e meta automática.</b> Quem tem plano importado escolhe qual vale. Com a automática desligada, vale o plano: se o gasto mudar 60 kcal ou mais, o app pergunta se você quer manter o plano ou atualizar (atualizar soma a diferença de gasto e mantém o mesmo déficit ou superávit; dá para voltar às metas originais). Com a automática ligada, ela vale no lugar do plano, que continua guardado. O app nunca mistura as duas.</p>
+  <p class="how"><b>5. Quando a meta muda.</b> Sem plano alimentar, a cada 7 dias o app recalcula usando a média do peso e, se a meta mudar 40 kcal ou mais, avisa na tela inicial. <b>Nada muda sem a sua confirmação.</b></p>
+  <p class="how"><b>Plano alimentar.</b> Quem tem plano importado sempre usa as metas do plano. Toda semana o app compara a variação do seu peso (média de 7 dias) com o ritmo do seu objetivo e, se estiver fora, sugere mudar as calorias em até 150 kcal por semana, e propõe um ponto de partida conforme o objetivo (ao secar mais: um pouco mais de proteína e menos carboidrato e gordura; ao ganhar massa: mais carboidrato). Você pode mudar qualquer macro antes de aplicar. Só passa a valer se você aceitar, e dá para voltar às metas originais. Exige refeições lançadas em pelo menos 60% dos dias e 2 pesagens no período.</p>
   <p class="mu" style="font-size:12px;margin:10px 0 0">É uma estimativa e não substitui a orientação de um nutricionista.</p></div>`,{back:"ajustes"});
 }
 function vCalc(tab){
@@ -311,7 +365,7 @@ function vAjustes(){
   const lk=(a,v,n,r="›")=>`<button class="row" data-a="${a}" data-v="${v||""}"><span class="n">${n}</span><span class="mu">${r}</span></button>`;
   const c=calcGasto();
   return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes de refeição","Avisos às 12:30 e 19:00 com o app aberto")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
-  <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","auto","Meta automática",S.auto.on?"automática ligada ›":hasPlan()?"plano manda ›":"desligada ›")}${lk("go","calc","Calculadora de gasto",c?fmt(c.rest)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
+  <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","auto","Meta automática",hasPlan()?"plano manda ›":S.auto.on?"automática ligada ›":"desligada ›")}${lk("go","calc","Calculadora de gasto",c?fmt(c.rest)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
   ${devOn?`<div class="lbl">Ferramentas avançadas</div><div class="card flush">${lk("go","import","Importar do app antigo")}${lk("go","finimp","Importar finanças (JSON)")}</div>`:""}<p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · <span data-a="verTap">versão 3.0</span></p>`,{back:"inicio"});
 }
@@ -333,7 +387,7 @@ function vInicio(){
   const pesos=Object.entries(S.days).filter(([,x])=>x.peso).sort((a,b)=>a[0]<b[0]?-1:1),pe=pesos.length?pesos[pesos.length-1][1].peso:null;
   const sg=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v)),row=(k,v,c="")=>`<div class="mrow"><span class="mu">${k}</span><b class="${c}">${v}</b></div>`;
   return page(`<div class="top"><div><div class="mu">${new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>${h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}${S.profile?.nome?", "+esc(S.profile.nome):""}</h1></div><button class="gear" data-a="go" data-v="ajustes" aria-label="Ajustes">⚙</button></div>
-  ${revCard()}${ringCard(t,m,D)}
+  ${ringCard(t,m,D)}
   <button class="mc" data-a="go" data-v="hoje"><div class="mh"><span class="mi">🥗</span><b>Nutrição</b><span class="mu">›</span></div>${row("Calorias hoje",m.k?fmt(t.k)+" de "+fmt(m.k)+" kcal":fmt(t.k)+" kcal")}${m.k?`<div class="bar"><i style="width:${Math.min(100,t.k/m.k*100)}%"></i></div>`:""}${row("Proteína",fmt(t.p)+(m.p?" de "+fmt(m.p):"")+" g")}${row("Peso atual",pe?fmt(pe,1)+" kg":"—")}${pesoDue()?`<div class="due">⚖ ${pesoDue()}</div>`:""}</button>
   <button class="mc" data-a="go" data-v="treino"><div class="mh"><span class="mi">🏋️</span><b>Treino</b><span class="mu">›</span></div>${row("Dia de hoje",tipo==="Treino"?"Treino":"Descanso")}${row("Treino",esc(D.treino||"—"))}${row("Gasto do dia",g?fmt(g)+" kcal":"—")}</button>
   <button class="mc" data-a="go" data-v="fresumo"><div class="mh"><span class="mi">💰</span><b>Finanças</b><span class="mu">›</span></div>${fr?row("Saldo do mês",Fin.brl(fr.saldo),fr.saldo<0?"bad":"good")+row("Viagem",fr.viagem?Fin.brl(fr.viagem.total)+" poupados":"Configurar"):row("Saldo do mês","Configurar")}</button><div class="mc soon" aria-disabled="true"><div class="mh" style="margin:0"><span class="mi">📅</span><b>Agenda</b><span class="soonb">Em breve</span></div></div>`,{nonav:true});
@@ -343,7 +397,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,auto:vAuto,treino:vTreino,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -544,16 +598,18 @@ const A={
     if(!raw){D.gasto=null}else{const v=num(raw);if(!(v>=500&&v<20000))return toast("Gasto inválido (entre 500 e 20000 kcal)");D.gasto=Math.round(v)}
     queue("days",{date:cur,...D});toast(D.gasto?"Gasto do dia salvo":"Voltou a usar o gasto estimado");render()},
   pick:d=>{if(d.d<=today()){cur=d.d;render()}},
-  revApply:()=>{const r=revPend,a=S.auto,hj=today();if(!r)return;
-    if(r.kind==="plan"){const dm=S.dieta.metas;S.dieta.metasPlano=S.dieta.metasPlano||structuredClone(dm);
-      for(const[t,d]of[["treino",r.dT],["descanso",r.dD]]){const m=dm[t];if(!m||!(m.k>0))continue;const k=Math.max(800,m.k+d),f=k/m.k;m.k=Math.round(k);m.p=Math.round(m.p*f);m.c=Math.round(m.c*f);m.g=Math.round(m.g*f);if(m.gasto>0)m.gasto=Math.round(m.gasto+d)}
-      a.base=r.cur;S.dieta.ajustadoEm=hj;toast("Meta do plano atualizada")}
+  revApply:()=>{const r=revPend,a=S.auto,hj=today();if(!r)return;revEdit={};
+    if(r.kind==="plano"){const dm=S.dieta.metas;S.dieta.metasPlano=S.dieta.metasPlano||structuredClone(dm);
+      for(const t in r.nv)Object.assign(dm[t],r.nv[t]);
+      a.rev={em:hj,peso:r.peso};S.dieta.ajustadoEm=hj;toast("Metas do plano atualizadas")}
+    else if(r.kind==="dados"){a.rev={em:hj,peso:pesoTend()}}
     else{a.applied={...r.nv,em:hj,peso:r.peso};toast("Meta atualizada")}
-    a.lastRev=hj;save();queueState();render()},
-  revKeep:()=>{const r=revPend,a=S.auto;if(!r)return;if(r.kind==="plan")a.base=r.cur;a.lastRev=today();save();queueState();toast(r.kind==="plan"?"Plano mantido":"Meta mantida");render()},
+    a.lastRev=hj;save();queueState();view="hoje";render()},
+  revKeep:()=>{const r=revPend,a=S.auto;if(!r)return;revEdit={};if(r.kind==="plano"||r.kind==="dados")a.rev={em:today(),peso:pesoTend()};a.lastRev=today();save();queueState();toast(r.kind==="auto"?"Meta mantida":"Plano mantido");view="hoje";render()},
+  revGoal:d=>{if(!S.profile)return;revEdit={};S.profile.goal=+d.i;save();queueState();render()},
   revReset:()=>{if(!S.dieta||!S.dieta.metasPlano)return;if(!confirm("Voltar às metas originais do plano?"))return;S.dieta.metas=structuredClone(S.dieta.metasPlano);delete S.dieta.metasPlano;delete S.dieta.ajustadoEm;S.auto.base=null;save();queueState();toast("Metas originais restauradas");render()},
   autoToggle:()=>{const a=S.auto;if(!a.on){if(!calcGasto())return toast("Complete o cadastro primeiro");const{nv}=novaMeta();a.on=true;a.applied={...nv,em:today(),peso:pesoTend()};a.lastRev=today()}else{a.on=false;a.base=null;a.lastRev=today()}save();queueState();render()},
-  autoRitmo:d=>{S.auto.ritmo=+d.i;if(S.auto.on&&calcGasto()){const{nv}=novaMeta();S.auto.applied={...nv,em:today(),peso:pesoTend()}}save();queueState();render()},
+  autoRitmo:d=>{revEdit={};S.auto.ritmo=+d.i;if(S.auto.on&&calcGasto()){const{nv}=novaMeta();S.auto.applied={...nv,em:today(),peso:pesoTend()}}save();queueState();render()},
   autoNow:()=>{if(!calcGasto())return;const{nv}=novaMeta();S.auto.applied={...nv,em:today(),peso:pesoTend()};S.auto.lastRev=today();save();queueState();toast("Meta recalculada");render()},
   verTap:()=>{if(devOn)return;if(++devTaps>=5){devOn=true;toast("Ferramentas avançadas liberadas");render()}},
   mealEdit:()=>{editMeals=!editMeals;render()},
@@ -586,9 +642,9 @@ const A={
   day:d=>{const x=new Date(cur+"T12:00:00");x.setDate(x.getDate()+ +d.n);if(iso(x)>today())return;cur=iso(x);render()},
   tipo:d=>{const D=day(cur);D.tipo=d.t;queue("days",{date:cur,...D});render()},
   meal:(d)=>{meal=+d.i;if(!d.stay)view="lancar";render()},
-  add:d=>{const f=foods().find(x=>x.n===d.n),p=parseQ(q);draft.push({f,q:p.q&&search(q)[0]===f?p.q:f.por});q="";render()},
+  add:d=>{const f=foods().find(x=>x.n===d.n),p=parseQ(q);draft.push({f,q:p.q&&search(q)[0]===f?p.q:""});q="";render();try{const el=document.querySelector('[data-di="'+(draft.length-1)+'"]');if(el&&!draft[draft.length-1].q)el.focus()}catch(e){}},
   rm:d=>{draft.splice(+d.i,1);render()},
-  saveDraft:()=>{const ml=S.settings.meals[meal];
+  saveDraft:()=>{const ml=S.settings.meals[meal],sem=draft.find(x=>!(x.q>0));if(sem)return toast("Informe a quantidade de "+sem.f.n);
     draft.forEach(({f,q})=>{const z=q/f.por,e={id:uid(),date:cur,meal:ml,name:f.n,qty:q,unit:f.u,k:+(f.k*z).toFixed(1),p:+(f.p*z).toFixed(1),c:+(f.c*z).toFixed(1),g:+(f.f*z).toFixed(1),deleted:false};S.entries.push(e);S.usage[f.n]=(S.usage[f.n]||0)+1;queue("entries",e)});
     toast(`${ml} salva`);draft=[];view="hoje";save();render()},
   del:d=>{const e=S.entries.find(x=>x.id===d.id);if(e){e.deleted=true;queue("entries",e);render()}},
@@ -613,18 +669,27 @@ const A={
     const csv=r.map(l=>l.map(v=>{v=String(v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[";\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}).join(";")).join("\n");
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"}));a.download="lancamentos.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},
   wipe:()=>{if(confirm("Apagar todos os dados DESTE aparelho? Dados já sincronizados continuam na sua conta.")){localStorage.removeItem(KEY);location.reload()}},
-  newFood:()=>{const n=parseQ(q||"").name.slice(0,60),g=prompt("Quantas kcal em 100 g de “"+n+"”?");const k=num(g);if(!n||k==null||k<0||k>1000)return;
-    S.customFoods.push({n,g:"Meus alimentos",u:"g",por:100,k,p:num(prompt("Proteína (g) em 100 g",0))||0,c:num(prompt("Carboidrato (g) em 100 g",0))||0,f:num(prompt("Gordura (g) em 100 g",0))||0});save();queueState();render()}
+  newFood:()=>{nf={n:parseQ(q||"").name.slice(0,60)};render();try{const el=document.getElementById(nf.n?"nf_k":"nf_n");el&&el.focus()}catch(e){}},
+  nfCancel:()=>{nf=null;render()},
+  nfSave:()=>{if(!nf)return;const n=(nf.n||"").trim().slice(0,60),k=num(nf.k),p=num(nf.p)||0,c=num(nf.c)||0,f=num(nf.f)||0;
+    if(!n)return toast("Digite o nome do alimento");
+    if(k==null||k<0||k>1000)return toast("Informe as calorias em 100 g (0 a 1000)");
+    if([p,c,f].some(v=>v<0||v>100))return toast("Macros devem ficar entre 0 e 100 g");
+    if(foods().some(x=>x.n.toLowerCase()===n.toLowerCase()))return toast("Já existe um alimento com esse nome");
+    S.customFoods.push({n,g:"Meus alimentos",u:"g",por:100,k,p,c,f});nf=null;q=n;save();queueState();render();toast("Alimento cadastrado")}
 };
 Object.assign(A,Fin.actions({S,save,queueState,render,toast,uid,go}));
 document.addEventListener("click",e=>{const el=e.target.closest("[data-a]");if(el&&A[el.dataset.a])A[el.dataset.a](el.dataset)});
-document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}});
+document.addEventListener("input",e=>{if(e.target.id==="q"){q=e.target.value;$("#res").innerHTML=foodList()}
+  else if(nf&&/^nf_[nkpcf]$/.test(e.target.id||""))nf[e.target.id.slice(3)]=e.target.value;
+  else if(e.target.dataset&&e.target.dataset.di!==undefined){const v=num(e.target.value);draft[+e.target.dataset.di].q=(v>0&&v<=100000)?v:"";const sp=document.querySelector(".sticky .in span");if(sp){const tt=draft.reduce((a,x)=>a+x.f.k*(x.q||0)/x.f.por,0);sp.textContent=draft.length+" "+(draft.length>1?"itens":"item")+" · "+fmt(tt)+" kcal"}}});
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(/^rv_(treino|descanso)_[pcg]$/.test(t.id||"")){const[,tp,m]=t.id.split("_"),v=num(t.value);if(v!=null&&v>=0&&v<=2000){revEdit[tp+m]=v;revRefresh()}return}
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
-  if(t.dataset.di!==undefined){const v=num(t.value);if(v>0&&v<=100000)draft[+t.dataset.di].q=v;render()}
+  if(t.dataset.di!==undefined)return;
   if(t.id==="pl_file"&&t.files[0]){const f=t.files[0],pdf=/\.pdf$/i.test(f.name)||f.type==="application/pdf";if(f.size>(pdf?15e6:2e6)){t.value="";return toast("Arquivo grande demais")}
     if(pdf){toast("Lendo o PDF...");pdfText(f).then(tx=>{if(tx.replace(/\s/g,"").length<20)return toast("Esse PDF não tem texto para ler (foto ou escaneado). Digite o plano na caixa abaixo.");pimpFrom(tx,"PDF: "+f.name.slice(0,40),f.name)}).catch(()=>toast("Não consegui abrir esse PDF"))}
     else f.text().then(tx=>pimpFrom(tx,"documento: "+f.name.slice(0,40),f.name));t.value=""}
