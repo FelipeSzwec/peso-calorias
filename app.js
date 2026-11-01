@@ -108,10 +108,10 @@ function parseQ(t){const m=t.trim().match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|un\w*
 /* ---------- Navegação e estado de tela ---------- */
 const today=()=>iso(new Date());
 const needLogin=()=>Cloud.on()&&!S.session&&!S.localOnly;
-let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],nf=null,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
+let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],nf=null,revForce=false,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
 let ob={step:0,goal:0,sexo:"m",nome:"",idade:"",alt:"",peso:"",email:"",pw:""};
 const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes",cad:"ajustes",conta:"ajustes",setpin:"ajustes"};
-const go=v=>{view=v;pinBuf="";render()};
+const go=v=>{if(v!=="ajuste")revForce=false;view=v;pinBuf="";render()};
 
 const FINV=["fresumo","fcontas","fviagem"],TREV=["treino","thist","tplano"];
 const nav=()=>{const tabs=FINV.includes(view)?[["fresumo","Resumo"],["fcontas","Contas"],["fviagem","Viagem"]]:TREV.includes(view)?[["treino","Hoje"],["thist","Histórico"],["tplano","Plano"]]:[["hoje","Hoje"],["lancar","Lançar"],["hist","Histórico"]];
@@ -249,11 +249,15 @@ let revPend=null;
 const addDias=(d,n)=>{const t=new Date(d+"T12:00:00");t.setDate(t.getDate()+n);return iso(t)};
 const pesoMedia=(a,b)=>{const w=pesoList().filter(([d])=>d>=a&&d<=b).map(([,x])=>x.peso);return w.length?w.reduce((x,y)=>x+y,0)/w.length:null};
 /* Revisao semanal do plano alimentar: o plano manda; o app so SUGERE um ajuste, que so vale se voce aceitar. */
+function revBaseManual(){
+  const hj=today(),ini=addDias(hj,-14),ds=[...new Set(S.entries.filter(e=>!e.deleted&&e.date>=ini&&e.date<hj).map(e=>e.date))].filter(d=>sum(ents(d)).k>600).sort();
+  if(!ds.length)return null;const st=ds[0];
+  return{em:addDias(st,-1),peso:pesoMedia(addDias(st,-3),addDias(st,2))}}
 function revInicio(pt){const em=((S.dieta&&S.dieta.em)||today()).slice(0,10);return{em,peso:pesoMedia(addDias(em,-6),em)||pt}}
-function revPlano(rev,pt,hj){
-  const dias=diasEntre(rev.em,hj),days=[];for(let i=1;i<=dias;i++)days.push(addDias(rev.em,i));
+function revPlano(rev,pt,hj,previa){
+  const dias=diasEntre(rev.em,hj),days=[];for(let i=1;i<dias;i++)days.push(addDias(rev.em,i));
   const logged=days.filter(d=>sum(ents(d)).k>600),pesos=days.filter(d=>S.days[d]&&S.days[d].peso).length;
-  if(logged.length<Math.ceil(dias*.6)||pesos<2)return{kind:"dados",dias,logged:logged.length,pesos};
+  if(!(rev.peso>0)||dias<3||logged.length<Math.ceil(dias*.6)||pesos<2)return{kind:"dados",previa,dias,logged:logged.length,pesos};
   const goal=(S.profile&&S.profile.goal)||0,ri=S.auto.ritmo??1;
   const pace=goal===0?[.0025,.005,.0075][ri]:goal===2?[.0015,.0025,.0035][ri]:0,alvo=(goal===0?-1:1)*pace*pt;
   const real=(pt-rev.peso)/(dias/7),intake=logged.reduce((a,d)=>a+sum(ents(d)).k,0)/logged.length;
@@ -271,7 +275,7 @@ function revPlano(rev,pt,hj){
       if(g<gmin){c=Math.max(40,c-(gmin-g)*9/4);g=gmin}}
     nv[t]={k:Math.round(k),p:Math.round(p),c:Math.round(c),g:Math.round(g),gasto:m.gasto}}
   const nota=ok?"":goal===0?(delta<0?"Ponto de partida comum ao secar mais: proteína um pouco mais alta (+10 g) e o resto da redução saindo de carboidrato (70%) e gordura (30%).":"Você está perdendo mais rápido que o alvo: a diferença de calorias volta principalmente como carboidrato (70%) e gordura (30%)."):goal===2?(delta>0?"Ponto de partida comum ao ganhar massa: proteína dentro de 1,6 a 2,2 g/kg e as calorias a mais indo principalmente para carboidrato (80%), o restante para gordura.":"Você está ganhando mais rápido que o alvo: a redução sai principalmente do carboidrato (80%) e um pouco da gordura."):"Para manter o peso, a diferença de calorias é dividida entre carboidrato (70%) e gordura (30%).";
-  return{kind:"plano",nota,dias,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
+  return{kind:"plano",previa,nota,dias,peso:pt,pesoIni:rev.peso,real,alvo,intake,n:logged.length,ok,goal,ri,nv,old:dm};
 }
 let revEdit={};
 function revDica(n,peso,goal){
@@ -294,7 +298,8 @@ function autoTick(){
   const hj=today();
   if(hasPlan()){
     const pt=pesoTend();if(!pt)return;
-    if(!a.rev){a.rev=revInicio(pt);save();queueState();return}
+    if(!a.rev){a.rev=revInicio(pt);save();queueState()}
+    if(revForce){const b=revBaseManual();revPend=b?revPlano(b,pt,hj,true):{kind:"dados",previa:true,dias:0,logged:0,pesos:0};revEditAplicar(revPend);return}
     if(diasEntre(a.rev.em,hj)<7)return;
     revPend=revPlano(a.rev,pt,hj);revEditAplicar(revPend);return}
   if(!a.on)return;
@@ -305,16 +310,17 @@ function autoTick(){
 }
 const sgn=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v));
 function revBanner(){
-  const r=revPend;if(!r)return"";
-  const sub=r.kind==="plano"?(r.ok?"Você está no ritmo do seu objetivo":"Sugestão disponível para esta semana"):r.kind==="dados"?"Faltam dados para recalcular":"Nova meta estimada disponível";
-  return`<div class="card flush rev"><button class="row" data-a="go" data-v="ajuste"><span class="n"><b>Ajuste semanal</b><small>${sub}</small></span><span class="mu">›</span></button></div>`}
-function vAjuste(){return page(revPend?revCard():`<h1>Ajuste semanal</h1><p class="mu">Nenhum ajuste pendente agora.</p>`,{back:"hoje"})}
+  const r=revPend;if(!r&&!hasPlan())return"";
+  const a=S.auto,prox=hasPlan()&&a.rev?fmtData(addDias(a.rev.em,7)):"";
+  const sub=!r?"Toque para ver uma prévia"+(prox?" · próxima sugestão em "+prox:""):r.kind==="plano"?(r.ok?"Você está no ritmo do seu objetivo":"Sugestão disponível para esta semana"):r.kind==="dados"?"Faltam dados para recalcular":"Nova meta estimada disponível";
+  return`<div class="card flush rev"><button class="row" data-a="ajusteOpen"><span class="n"><b>Ajuste semanal</b><small>${sub}</small></span><span class="mu">›</span></button></div>`}
+function vAjuste(){return page(revPend?revCard():`<h1>Ajuste semanal</h1><p class="mu">${hasPlan()?"Registre o peso e as refeições para ver uma sugestão.":"Importe o seu plano alimentar em Ajustes para usar o ajuste semanal."}</p>`,{back:"hoje"})}
 function revCard(){
   const r=revPend;if(!r)return"";
-  if(r.kind==="dados")return`<div class="card rev"><b>Ajuste semanal</b><p>Já se passaram ${r.dias} dias, mas faltam dados para recalcular: ${r.logged} dia(s) com refeições lançadas e ${r.pesos} pesagem(ns). Lance as refeições e pese-se com regularidade para o ajuste ser confiável. Seu plano continua valendo.</p><div class="frow"><button class="btn ghost" data-a="revKeep">Pular este ajuste</button></div></div>`;
+  if(r.kind==="dados")return`<div class="card rev"><b>Ajuste semanal${r.previa?" · prévia":""}</b><p>${r.previa?"Com os dias que você já tem":"Já se passaram "+r.dias+" dias"}, faltam dados para recalcular: ${r.logged} dia(s) com refeições lançadas e ${r.pesos} pesagem(ns) no período. Lance as refeições e pese-se com regularidade para o ajuste ser confiável. Seu plano continua valendo.</p>${r.previa?"":`<div class="frow"><button class="btn ghost" data-a="revKeep">Pular este ajuste</button></div>`}</div>`;
   if(r.kind==="plano"){const dk=r.peso-r.pesoIni,sem=r.real,f1=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v),1),T=r.nv.treino,D=r.nv.descanso,O=r.old,
     ed=(tp,n,o)=>n?`<div class="lbl" style="margin:12px 0 6px">${tp==="treino"?"Dia de treino":"Dia de descanso"} · <b id="rvk_${tp}">${fmt(n.k)} kcal</b> <span class="mu">(antes ${fmt(o.k)})</span></div><div class="grid3">${[["p","Prot. (g)"],["c","Carbo (g)"],["g","Gord. (g)"]].map(([m,l])=>field("rv_"+tp+"_"+m,l,String(n[m]),"",'inputmode="decimal"')).join("")}</div><div id="rvh_${tp}">${revDica(n,r.peso,r.goal)}</div>`:"";
-    return`<div class="card rev"><b>Ajuste semanal</b><p>Em ${r.dias} dias seu peso médio foi de <b>${fmt(r.pesoIni,1)}</b> para <b>${fmt(r.peso,1)} kg</b> (${f1(dk)} kg, ${f1(sem)} kg por semana). Você comeu em média <b>${fmt(r.intake)} kcal</b> nos ${r.n} dias lançados.</p>
+    return`<div class="card rev"><b>Ajuste semanal${r.previa?" · prévia":""}</b><p>Em ${r.dias} dias seu peso médio foi de <b>${fmt(r.pesoIni,1)}</b> para <b>${fmt(r.peso,1)} kg</b> (${f1(dk)} kg, ${f1(sem)} kg por semana). Você comeu em média <b>${fmt(r.intake)} kcal</b> nos ${r.n} dias lançados.</p>
     <div class="mu" style="font-size:12px;margin:8px 0">Seu objetivo (toque para mudar)</div><div class="seg">${GOALS.map((n,i)=>`<button data-a="revGoal" data-i="${i}" class="${r.goal===i?"on":""}">${n}</button>`).join("")}</div>
     ${r.goal!==1?`<div class="mu" style="font-size:12px;margin:10px 0 8px">Ritmo</div><div class="seg">${RITMOS.map((n,i)=>`<button data-a="autoRitmo" data-i="${i}" class="${r.ri===i?"on":""}">${n}</button>`).join("")}</div><p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: ${r.goal===0?"perder":"ganhar"} cerca de ${fmt(Math.abs(r.alvo),2)} kg por semana.</p>`:`<p class="mu" style="font-size:12px;margin:8px 0 0">Alvo: manter o peso.</p>`}
     ${r.ok?`<p style="margin-top:10px"><b>Você está no ritmo do seu objetivo.</b> Sugestão: manter o plano como está.</p><div class="frow"><button class="btn" data-a="revKeep">Manter o plano</button></div>`:`<p style="margin-top:10px"><b>Sugestão de ajuste.</b> ${r.nota} <b>Toque em qualquer valor para mudar</b>; as calorias se ajustam sozinhas. As faixas abaixo vêm de revisões científicas (ISSN 2017 e 2026, Helms 2014, Iraki 2019) e são referências, não regras. Se tiver dúvida, confirme com sua nutricionista.</p>${ed("treino",T,O.treino)}${ed("descanso",D,O.descanso)}<div class="frow" style="margin-top:12px"><button class="btn" data-a="revApply">Aplicar ao plano</button><button class="btn ghost" data-a="revKeep">Manter o plano</button></div><p class="mu" style="font-size:12px;margin:8px 0 0">Dá para voltar às metas originais em Ajustes. Se tiver dúvida, confirme com sua nutricionista.</p>`}</div>`}
@@ -598,14 +604,15 @@ const A={
     if(!raw){D.gasto=null}else{const v=num(raw);if(!(v>=500&&v<20000))return toast("Gasto inválido (entre 500 e 20000 kcal)");D.gasto=Math.round(v)}
     queue("days",{date:cur,...D});toast(D.gasto?"Gasto do dia salvo":"Voltou a usar o gasto estimado");render()},
   pick:d=>{if(d.d<=today()){cur=d.d;render()}},
-  revApply:()=>{const r=revPend,a=S.auto,hj=today();if(!r)return;revEdit={};
+  ajusteOpen:()=>{if(!revPend)revForce=true;go("ajuste")},
+  revApply:()=>{const r=revPend,a=S.auto,hj=today();if(!r)return;revEdit={};revForce=false;
     if(r.kind==="plano"){const dm=S.dieta.metas;S.dieta.metasPlano=S.dieta.metasPlano||structuredClone(dm);
       for(const t in r.nv)Object.assign(dm[t],r.nv[t]);
       a.rev={em:hj,peso:r.peso};S.dieta.ajustadoEm=hj;toast("Metas do plano atualizadas")}
     else if(r.kind==="dados"){a.rev={em:hj,peso:pesoTend()}}
     else{a.applied={...r.nv,em:hj,peso:r.peso};toast("Meta atualizada")}
     a.lastRev=hj;save();queueState();view="hoje";render()},
-  revKeep:()=>{const r=revPend,a=S.auto;if(!r)return;revEdit={};if(r.kind==="plano"||r.kind==="dados")a.rev={em:today(),peso:pesoTend()};a.lastRev=today();save();queueState();toast(r.kind==="auto"?"Meta mantida":"Plano mantido");view="hoje";render()},
+  revKeep:()=>{const r=revPend,a=S.auto;if(!r)return;revEdit={};revForce=false;if(r.kind==="plano"||r.kind==="dados")a.rev={em:today(),peso:pesoTend()};a.lastRev=today();save();queueState();toast(r.kind==="auto"?"Meta mantida":"Plano mantido");view="hoje";render()},
   revGoal:d=>{if(!S.profile)return;revEdit={};S.profile.goal=+d.i;save();queueState();render()},
   revReset:()=>{if(!S.dieta||!S.dieta.metasPlano)return;if(!confirm("Voltar às metas originais do plano?"))return;S.dieta.metas=structuredClone(S.dieta.metasPlano);delete S.dieta.metasPlano;delete S.dieta.ajustadoEm;S.auto.base=null;save();queueState();toast("Metas originais restauradas");render()},
   autoToggle:()=>{const a=S.auto;if(!a.on){if(!calcGasto())return toast("Complete o cadastro primeiro");const{nv}=novaMeta();a.on=true;a.applied={...nv,em:today(),peso:pesoTend()};a.lastRev=today()}else{a.on=false;a.base=null;a.lastRev=today()}save();queueState();render()},
