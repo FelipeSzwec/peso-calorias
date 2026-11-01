@@ -1,4 +1,4 @@
-const CV="pc3-v32",C=CV,F=["./","index.html","app.css","app.js","fin.js","config.js","foods.json","manifest.json","icon-180.png","icon-512.png"];
+const CV="pc3-v33",C=CV,F=["./","index.html","app.css","app.js","fin.js","config.js","foods.json","manifest.json","icon-180.png","icon-512.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F.map(u=>new Request(u,{cache:"reload"})))));self.skipWaiting()});
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>clients.claim())));
 // Só arquivos do próprio app entram no cache. Chamadas ao Supabase nunca passam por aqui.
