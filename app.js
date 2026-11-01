@@ -184,10 +184,10 @@ function vLancar(){
   return page(`<h1 style="margin-bottom:14px">Lançar</h1><div class="chips">${S.settings.meals.map((m,i)=>`<button data-a="meal" data-i="${i}" data-stay="1" class="${i===meal?"on":""}">${esc(m)}</button>`).join("")}</div>
   ${planBox()}
   ${draft.length?`<div class="lbl">Montando</div><div class="card flush" style="margin-bottom:12px">${draft.map((x,i)=>`<div class="dq"><span class="n">${esc(x.f.n)}</span><input data-di="${i}" value="${x.q}" placeholder="Qtd" inputmode="decimal" aria-label="Quantidade">${x.f.ps&&x.f.ps.length?`<select data-dp="${i}" aria-label="Medida" style="width:auto;max-width:150px;padding:9px"><option value="">${x.f.u}</option>${x.f.ps.map((m,j)=>`<option value="${j}"${x.pi===j?" selected":""}>${esc(m.n)} (${m.q} ${x.f.u})</option>`).join("")}</select>`:`<span class="mu" style="width:24px">${x.f.u==="unid"?"un":x.f.u}</span>`}<button data-a="rm" data-i="${i}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
+  ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   <div class="lbl" style="margin-top:22px">Buscar alimento</div>
   <input id="q" value="${esc(q)}" placeholder="Buscar ou digitar “200 g de arroz”" autocomplete="off" enterkeyhint="search">
   <button class="btn ghost" style="margin-top:10px" data-a="newFood">＋ Cadastrar alimento</button>
-  ${done.length?`<div class="lbl">Já lançado em ${esc(ml)}</div><div class="card flush">${done.map(e=>`<div class="dq"><span class="n">${esc(e.name)}<br><small class="mu">${fmt(e.qty)} ${e.unit==="unid"?"un":e.unit} · ${fmt(e.k)} kcal</small></span><button data-a="del" data-id="${e.id}" aria-label="Remover">✕</button></div>`).join("")}</div>`:""}
   <div class="lbl">${q?"Resultados":"Mais usados"}</div><div id="res">${foodList()}</div>
   ${draft.length?`<div class="sticky"><div class="in"><span>${draft.length} ${draft.length>1?"itens":"item"} · ${fmt(t)} kcal</span><button data-a="saveDraft">Salvar refeição</button></div></div>`:""}`);
 }
