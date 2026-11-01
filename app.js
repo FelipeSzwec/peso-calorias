@@ -422,6 +422,53 @@ function parseExames(tx){
       else if(r=refTxt.match(/(?:superior a|maior que|acima de|>=?)\s*(\d+(?:[.,]\d+)?)/))mn=n2(r[1]);
       out.push({n:nome,u:un,v,min:mn,max:mx});break}}
   return out}
+const SIGLAS=new Set(["fsh","lh","shbg","dht","t3","t4","tsh","hdl","ldl","vldl","b12","hba1c","a1c","psa","tgo","tgp","ast","alt","pcr","hcm","vcm","chcm","rdw"]);
+const SKIPT=/^(valor|valores|nota|metodo|material|observ|atencao|resultado|exame|liberado|realizado|adultos|homem|mulher|criancas|pediatr|gestante)/;
+function titulo(h){return h.toLowerCase().replace(/[a-zà-ÿ0-9]+/g,w=>SIGLAS.has(nrm(w))?w.toUpperCase():w).replace(/^./,c=>c.toUpperCase())}
+function parseLaudo(tx,sexo,idade){
+  const L=tx.split("\n").map(x=>x.replace(/\s+/g," ").trim()),out=[],NUM="(\\d+(?:[.,]\\d+)?)";
+  const HEAD=/^[A-ZÀ-Ý0-9][A-ZÀ-Ý0-9 ,\-\(\)\/\.']{3,70}$/,isHead=l=>HEAD.test(l)&&/[A-ZÀ-Ý]{3}/.test(l)&&!/^(EXAME REALIZADO|NOME|MEDICO|MÉDICO|CONV|POSTO|PROTOCOLO|OBS)/.test(l);
+  const strip=s=>s.replace(/(?:acima de|acima|abaixo de|ate|maiores de|menores de)?\s*\d+\s*(?:anos|ano|meses|mes|dias|horas|semanas)\b/g," ");
+  const range=raw=>{const s=strip(nrm(raw));let r;
+    if(r=s.match(new RegExp(NUM+"\\s*(?:a|ate|e|-)\\s*"+NUM))){const a=n2(r[1]),b=n2(r[2]);if(a!=null&&b!=null&&a<=b)return{min:a,max:b}}
+    if(r=s.match(new RegExp("(?:inferior ou igual a|inferior a|menor ou igual a|menor que|menos de|ate|<=?)\\s*"+NUM)))return{min:"",max:n2(r[1])};
+    if(r=s.match(new RegExp("(?:superior ou igual a|superior a|igual ou maior que|maior ou igual a|maior que|acima de|>=?)\\s*"+NUM)))return{min:n2(r[1]),max:""};
+    return null};
+  const sexoOk=s=>sexo==="f"?!/homem|homens|masculino/.test(s):!/mulher|mulheres|feminino|gestante/.test(s);
+  const EXCL=/recem|crianca|pediatr|prematur|adolescent|trimestre|a termo|lactente|menos de 24|deficien|insuficien|intoxic|diabet|diagnost|controle|risco|\|/;
+  const idOk=raw=>{const m=nrm(raw).match(/acima de (\d+) anos/);return!(m&&+m[1]>=45&&(idade||40)<+m[1])};
+  function pickRef(lines,lab){
+    const c=lines.filter(l=>l&&sexoOk(nrm(l))&&idOk(l)&&!EXCL.test(nrm(l))&&(!lab||new RegExp("\\b"+lab+"\\b").test(nrm(l))));
+    const pref=sexo==="f"?/mulher|mulheres|feminino/:/homem|homens|masculino/;
+    for(const l of c.filter(l=>pref.test(nrm(l)))){const r=range(l);if(r)return r}
+    for(const l of c.filter(l=>!/homem|homens|mulher|mulheres|masculino|feminino/.test(nrm(l)))){const r=range(l);if(r)return r}
+    return {min:"",max:""}}
+  let head="",hs=-1;
+  for(let i=0;i<L.length;i++){
+    const l=L[i];if(/^RESUMO DE RESULTADOS/.test(l))break;
+    if(isHead(l)){head=l;hs=i;continue}
+    if(head==="HEMOGRAMA"){let d=l.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ \-\.]{1,30}?)\s*:\s*[\d,\.]+\s*%\s*(\d+)\s*\/mm3\s*(.*)$/);
+      if(d){const r=range(d[3]);if(r)out.push({n:d[1].trim()+" (absoluto)",u:"/mm3",v:+d[2],min:r.min,max:r.max});continue}
+      let m=l.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ \-\.]{1,30}?)\s*:\s*(\d+(?:[.,]\d+)?)\s*(%)?\s*(\S*)/);
+      if(m){let nome=m[1].replace(/\s*-\s*global/i,"").trim(),v=n2(m[2]),un=m[4]||(m[3]||"");const rest=l.slice(m[0].length);
+        if(m[3]){const a=rest.match(/^\s*(\d+)\s*\/mm3/);if(a){v=+a[1];un="/mm3";nome+=" (absoluto)"}}
+        const r=range(rest)||range(l.slice(m[0].length-0));if(r&&v!=null)out.push({n:nome,u:un.replace(/^%$/,"%"),v,min:r.min,max:r.max});continue}
+      m=l.match(/^(Leuc[oó]citos|Plaquetas)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(\S*)\s*(.*)$/i);
+      if(m){const r=range(m[4]);if(r)out.push({n:m[1],u:m[3],v:n2(m[2]),min:r.min,max:r.max});continue}}
+    const mr=l.match(/^Resultado[^:]*:\s*(?:([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ]{1,25}?)\s*:\s*)?([<>]?)\s*(\d+(?:[.,]\d+)?)\s*(\S*)\s*(.*)$/);
+    if(!mr||mr[2])continue;
+    const v=n2(mr[3]);if(v==null)continue;
+    let nome=head?titulo(head):"Exame";
+    for(let k=i-1,seen=0;k>hs&&seen<4;k--){const p=L[k];if(!p)continue;seen++;if(p.includes(":"))continue;
+      if(p.length>=3&&p.length<=60&&!/[\d.]/.test(p)&&!/^[-•*|+]/.test(p)&&!SKIPT.test(nrm(p))){nome=p;break}break}
+    if(nome===head||nome===titulo(head)){}
+    const lab=mr[1]?mr[1].trim():"";if(lab)nome=titulo(head)+" "+lab.toLowerCase();
+    const body=[mr[5]];for(let k=i+1;k<L.length&&k<i+40;k++){const p=L[k];if(/^(Nota|Observa|EXAME REALIZADO|Material|Resultado)/.test(p)||isHead(p))break;body.push(p)}
+    out.push({n:nome.slice(0,60),u:mr[4].replace(/^microUI/,"µUI"),v,...pickRef(body,lab?nrm(lab):"")});
+    if(lab){for(let k=i+1;k<L.length&&k<i+8;k++){const p=L[k].match(/^([A-Za-zÀ-ÿ]+)\s*:\s*(\d+(?:[.,]\d+)?)\s*(\S*)/);if(!p)break;const l2=nrm(p[1]);
+      out.push({n:titulo(head)+" "+p[1].toLowerCase(),u:p[3],v:n2(p[2]),...pickRef(body,l2)})}}
+  }
+  const vistos=new Set();return out.filter(x=>{const k=x.n+"|"+x.v;if(vistos.has(k))return false;vistos.add(k);return true})}
 const stEx=x=>{const v=num(x.v),mn=num(x.min),mx=num(x.max);if(v==null)return"?";if(mn!=null&&v<mn)return"baixo";if(mx!=null&&v>mx)return"alto";return mn==null&&mx==null?"?":"ok"};
 const refTxt=x=>{const mn=num(x.min),mx=num(x.max);return mn!=null&&mx!=null?fmt(mn,1)+" a "+fmt(mx,1):mx!=null?"até "+fmt(mx,1):mn!=null?"acima de "+fmt(mn,1):"sem faixa"};
 const saudeOrd=()=>[...(S.saude||[])].sort((a,b)=>a.data<b.data?1:-1);
@@ -822,7 +869,7 @@ document.addEventListener("change",e=>{
   if(t.dataset.di!==undefined)return;
   if(t.id==="sa_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo o PDF...");
     pdfText(f).then(tx=>{if(tx.replace(/\s/g,"").length<20)return toast("Esse PDF não tem texto para ler (foto ou escaneado). Digite os valores.");
-      const itens=parseExames(tx),dm=tx.match(/(?:coleta|data|realizad[oa]|emiss[aã]o)[^\d\n]{0,25}(\d{2})\/(\d{2})\/(\d{4})/i)||tx.match(/(\d{2})\/(\d{2})\/(\d{4})/),dt=dm?dm[3]+"-"+dm[2]+"-"+dm[1]:today();
+      let itens=[];try{itens=parseLaudo(tx,S.profile&&S.profile.sexo,S.profile&&S.profile.idade)}catch(e){}if(itens.length<3)itens=parseExames(tx);const dm=tx.match(/(?:coleta|data|realizad[oa]|emiss[aã]o)[^\d\n]{0,25}(\d{2})\/(\d{2})\/(\d{4})/i)||tx.match(/(\d{2})\/(\d{2})\/(\d{4})/),dt=dm?dm[3]+"-"+dm[2]+"-"+dm[1]:today();
       sdDraft={novo:true,id:uid(),data:dt>today()?today():dt,lab:"",itens:itens.length?itens:[{n:"",u:"",v:"",min:"",max:""}]};go("saudeed");
       toast(itens.length?"Reconheci "+itens.length+" exame(s). Confira os valores.":"Não reconheci exames. Digite os valores.")}).catch(()=>toast("Não consegui ler o PDF"));return}
   if(t.id==="pl_file"&&t.files[0]){const f=t.files[0],pdf=/\.pdf$/i.test(f.name)||f.type==="application/pdf";if(f.size>(pdf?15e6:2e6)){t.value="";return toast("Arquivo grande demais")}
