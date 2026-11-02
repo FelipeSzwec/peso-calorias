@@ -18,6 +18,9 @@ const compact=v=>{const a=Math.abs(v),s=a>=1000?(a/1000).toFixed(1).replace(".",
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const fmtData=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||"");return m?m[3]+"/"+m[2]:""};
 
+const DEFROT={parcelas:"Parcelas",recorrentes:"Recorrentes",sophia:"Compartilhados",entradas:"Entradas",variaveis:"Variáveis"};
+const rot=k=>{const r=(ctx&&ctx.S.fin&&ctx.S.fin.cfg&&ctx.S.fin.cfg.rot)||{};return String(r[k]||"").trim().slice(0,24)||DEFROT[k]};
+const DICA={parcelas:"Compras parceladas, com valor da parcela e quantas faltam.",recorrentes:"Contas e assinaturas que se repetem todo mês.",sophia:"Gastos que você divide com outra pessoa. O app considera 50% do total como a sua parte.",entradas:"O que entra por mês: salário e outras rendas.",variaveis:"Gastos do dia a dia, com data e categoria."};
 const COLLS=["entradas","recorrentes","sophia","parcelas","variaveis"];
 const TABS=["parcelas","recorrentes","sophia","entradas","variaveis"];
 const blank=()=>({entradas:[],recorrentes:[],sophia:[],parcelas:[],variaveis:[],cfg:{reajusteMes:null},viagem:{}});
@@ -107,12 +110,12 @@ const SEC={
 const parse=(c,raw)=>c.t==="text"?raw.trim():c.t==="date"?raw:c.t==="int"?parseInt(raw,10):(raw===""&&c.opt?null:parseFloat(raw));
 const valid=(c,v)=>c.t==="text"?(!!c.opt||v!==""):c.t==="date"?/^\d{4}-\d{2}-\d{2}$/.test(v):v===null?!!c.opt:typeof v==="number"&&isFinite(v);
 
-const ui={tab:"parcelas",open:null,sel:0};
+const ui={tab:"parcelas",open:null,sel:0,dest:"variaveis"};
 let ctx=null;
 const F=()=>ctx.S.fin;
 
 /* ---------- Telas (devolvem HTML; o app.js coloca no page()) ---------- */
-const SEG=[["Parcelas","par","var(--ac)"],["Recorrentes","rec","#7fa3db"],["Divididos","soph","#e0aa5c"],["Variáveis","vari","#ab92d6"]];
+const SEGN=()=>[[rot("parcelas"),"par","var(--ac)"],[rot("recorrentes"),"rec","#7fa3db"],[rot("sophia"),"soph","#e0aa5c"],[rot("variaveis"),"vari","#ab92d6"]];
 const line=(k,v,cls="")=>`<div class="fl ${cls}"><span class="mu">${k}</span><b>${v}</b></div>`;
 
 function vResumo(){
@@ -128,13 +131,13 @@ function vResumo(){
   <button class="card tripc" data-a="finGasto" aria-label="Lançar um gasto"><div class="lbl" style="margin-top:0">Saldo de ${MESL[now%12]}</div>
     <div class="fbig ${r0.saldo<0?"bad":"good"}">${brl(r0.saldo)}</div>
     <div class="mu" style="font-size:14px;margin-top:4px">Entram ${brl(r0.ent)} e saem ${brl(r0.out)}</div>
-    <div class="stack" role="img" aria-label="Divisão das saídas do mês">${SEG.map(([n,k,c])=>r0[k]>0?`<i style="width:${r0[k]/base*100}%;background:${c}"></i>`:"").join("")}</div>
-    <div class="legd">${SEG.map(([n,k,c])=>`<div class="lg"><span class="sw" style="background:${c}"></span><span class="mu">${n}</span><b>${brl(r0[k])}</b></div>`).join("")}</div><div class="mu" style="font-size:13px;margin-top:12px">Toque para lançar um gasto ›</div></button>
+    <div class="stack" role="img" aria-label="Divisão das saídas do mês">${SEGN().map(([n,k,c])=>r0[k]>0?`<i style="width:${r0[k]/base*100}%;background:${c}"></i>`:"").join("")}</div>
+    <div class="legd">${SEGN().map(([n,k,c])=>`<div class="lg"><span class="sw" style="background:${c}"></span><span class="mu">${n}</span><b>${brl(r0[k])}</b></div>`).join("")}</div><div class="mu" style="font-size:13px;margin-top:12px">Toque para lançar um gasto ›</div></button>
   ${t.list?`<button class="card tripc" data-a="go" data-v="fviagem"><div class="lbl" style="margin-top:0">${esc(objNome(f))} · ${MESL[t.ti%12]} · poupança prevista</div><div class="fbig ${t.total<0?"bad":"good"}" style="font-size:30px">${brl(t.total)}</div><div class="mu" style="font-size:13px;margin-top:2px">${t.list.length} ${t.list.length>1?"meses":"mês"} de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} ›</div></button>`:""}
   <div class="card"><h2 style="margin-top:0">Saldo mês a mês</h2>
     <div class="fchart">${rows.map((x,k)=>`<button class="fcol" data-a="finSel" data-i="${k}" aria-pressed="${k===sel}" aria-label="${lab(x.m)}, saldo ${brl(x.saldo)}"><span class="tip">${k===sel?compact(x.saldo):""}</span><span class="fb ${x.saldo<0?"neg":""}" style="height:${Math.max(6,Math.round(Math.abs(x.saldo)/maxAbs*110))}px"></span><span class="fm">${MES[x.m%12]}</span></button>`).join("")}</div>
     <div class="fdet"><b style="font-size:16px">${longLab(r.m)}</b>
-      ${line("Entradas",brl(r.ent))}${line("Parcelas",brl(r.par))}${line("Recorrentes",brl(r.rec))}${line("Divididos (sua parte)",brl(r.soph))}${line("Variáveis lançados",brl(r.vari))}${line("Saldo",brl(r.saldo),"tot "+(r.saldo<0?"bad":"good"))}
+      ${line(rot("entradas"),brl(r.ent))}${line(rot("parcelas"),brl(r.par))}${line(rot("recorrentes"),brl(r.rec))}${line(rot("sophia")+" (sua parte)",brl(r.soph))}${line("Variáveis lançados",brl(r.vari))}${line("Saldo",brl(r.saldo),"tot "+(r.saldo<0?"bad":"good"))}
       ${notes.length?`<ul class="notes">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:""}</div></div>`;
 }
 
@@ -142,20 +145,29 @@ function form(tab,row){
   const S=SEC[tab];
   return `<div class="fform"><div class="grid2">${S.cols.map(c=>{
     const val=row?c.get(row):c.t==="date"?todayStr():"",at=c.t==="text"?'type="text"':c.t==="date"?'type="date"':c.t==="money"?'type="number" step="0.01" min="0" inputmode="decimal"':'type="number" step="1" min="0" inputmode="numeric"';
-    return `<div class="fld" ${c.w?'style="grid-column:1/-1"':""}><label for="ff_${c.k}">${c.l}${c.opt?" (opcional)":""}</label><input id="ff_${c.k}" ${at} value="${esc(val==null?"":val)}"></div>`}).join("")}</div>
+    return `<div class="fld" ${c.w||c.t==="date"?'style="grid-column:1/-1"':""}><label for="ff_${c.k}">${c.l}${c.opt?" (opcional)":""}</label><input id="ff_${c.k}" ${at} value="${esc(val==null?"":val)}"></div>`}).join("")}</div>
   <div class="frow"><button class="btn" data-a="finSave">${row?"Salvar":"Adicionar"}</button><button class="btn ghost" data-a="finCancel">Cancelar</button></div>${row?`<button class="lk fdel" data-a="finDel" data-id="${esc(row.id)}">Remover</button>`:""}</div>`;
 }
 
 function vContas(){
   const f=F(),tab=ui.tab,S=SEC[tab],rows=f[tab].slice().sort(S.sort),isNew=ui.open===tab+":new";
-  return `<div class="top"><div><div class="mu">Lançamentos</div><h1>Contas</h1></div></div>
-  <div class="chips">${TABS.map(c=>`<button data-a="finTab" data-t="${c}" class="${c===tab?"on":""}">${SEC[c].l}</button>`).join("")}</div>
+  return `<div class="top"><div><div class="mu">Lançamentos</div><h1>Contas</h1></div><button class="btn" style="width:auto;padding:10px 16px;font-size:14px;border-radius:12px" data-a="finLancar">＋ Lançar</button></div>
+  <div class="chips">${TABS.map(c=>`<button data-a="finTab" data-t="${c}" class="${c===tab?"on":""}">${rot(c)}</button>`).join("")}</div>
   <div class="fhead"><span class="mu">${S.sum(rows)}</span><button class="btn" style="width:auto;padding:10px 16px;font-size:14px;border-radius:12px" data-a="finAdd">＋ Adicionar</button></div>
-  ${tab==="sophia"?`<p class="mu" style="font-size:13px;margin:0 0 10px">Gastos divididos com outra pessoa. O app considera 50% do total como a sua parte.</p><div class="fld" style="margin-bottom:10px"><label for="fr">Reajuste vale a partir de</label><input id="fr" type="month" data-fin="reaj" value="${esc(f.cfg.reajusteMes||"")}"></div>`:""}
+  <div class="fld" style="margin-bottom:8px"><label for="fr_nome">Nome desta aba (você pode mudar)</label><input id="fr_nome" type="text" maxlength="24" data-fin="rot" data-rk="${tab}" value="${esc(rot(tab))}"></div><p class="mu" style="font-size:13px;margin:0 0 10px">${DICA[tab]}</p>
+  ${tab==="sophia"?`<div class="fld" style="margin-bottom:10px"><label for="fr">Reajuste vale a partir de</label><input id="fr" type="month" data-fin="reaj" value="${esc(f.cfg.reajusteMes||"")}"></div>`:""}
   ${isNew?`<div class="card">${form(tab,null)}</div>`:""}
   ${rows.length?`<div class="card flush">${rows.map(r=>{const open=ui.open===tab+":"+r.id;return `<button class="row" data-a="finOpen" data-id="${esc(r.id)}" aria-expanded="${open}"><span class="n"><b ${open?'class="good"':""}>${esc(S.t(r))}</b>${S.s(r)?`<small>${esc(S.s(r))}</small>`:""}</span><b>${S.v(r)}</b></button>${S.prog?`<div class="bar" style="margin:-4px 16px 12px"><i style="width:${Math.round(S.prog(r)*100)}%"></i></div>`:""}${open?`<div style="padding:0 16px 14px">${form(tab,r)}</div>`:""}`}).join("")}</div>`:(isNew?"":`<p class="mu" style="padding:8px 4px">${S.none}</p>`)}`;
 }
 
+function vLancarFin(){
+  if(!DEFROT[ui.dest])ui.dest="variaveis";
+  const d=ui.dest,ord=["variaveis","parcelas","recorrentes","sophia","entradas"];
+  return `<h1 style="margin-bottom:4px">Lançar</h1><p class="mu" style="font-size:13px;margin:0 0 12px">Escolha para onde o lançamento vai e preencha os dados.</p>
+  <div class="lbl" style="margin-top:0">Para onde vai?</div><div class="chips" style="flex-wrap:wrap;overflow:visible">${ord.map(c=>`<button data-a="finDest" data-t="${c}" class="${c===d?"on":""}">${esc(rot(c))}</button>`).join("")}</div>
+  <p class="mu" style="font-size:13px;margin:0 0 10px">${DICA[d]}</p>
+  <div class="card">${form(d,null).replace('data-a="finSave"','data-a="finLSave"').replace('data-a="finCancel"','data-a="finLCancel"')}</div>`;
+}
 function vViagem(){
   const f=F(),all=calc(f),t=trip(f,all),c=f.viagem||{};
   const fields=`<div class="fld" style="margin-top:16px"><label for="t_nome">Nome do objetivo</label><input id="t_nome" type="text" maxlength="30" placeholder="Ex.: Viagem, Reserva, Carro" data-fin="nome" value="${esc(c.nome||"")}"></div><div class="grid1" style="margin-top:12px">
@@ -208,7 +220,7 @@ function cleanImport(j){
       out[c].push(o);
     }
   }
-  const rj=j.cfg&&j.cfg.reajusteMes;out.cfg.reajusteMes=/^\d{4}-\d{2}$/.test(rj||"")?rj:null;
+  const rj=j.cfg&&j.cfg.reajusteMes;if(j.cfg&&j.cfg.rot&&typeof j.cfg.rot==="object"){out.cfg.rot={};for(const k of Object.keys(DEFROT))if(typeof j.cfg.rot[k]==="string")out.cfg.rot[k]=j.cfg.rot[k].slice(0,24)}out.cfg.reajusteMes=/^\d{4}-\d{2}$/.test(rj||"")?rj:null;
   const v=j.viagem||{};
   out.viagem={nome:typeof v.nome==="string"?v.nome.trim().slice(0,30):"",inicio:/^\d{4}-\d{2}$/.test(v.inicio||"")?v.inicio:null,mes:/^\d{4}-\d{2}$/.test(v.mes||"")?v.mes:null,meta:v.meta>0?Number(v.meta):null,teto:v.teto>=0?Number(v.teto):0};
   return out;
@@ -224,7 +236,8 @@ function actions(c){
   document.addEventListener("change",e=>{
     const k=e.target.dataset&&e.target.dataset.fin;if(!k)return;
     const f=F(),v=e.target.value,x=parseFloat(v);
-    if(k==="nome")f.viagem.nome=v.trim().slice(0,30);
+    if(k==="rot"){const rk=e.target.dataset.rk;if(DEFROT[rk]){f.cfg.rot={...(f.cfg.rot||{}),[rk]:v.trim().slice(0,24)}}}
+    else if(k==="nome")f.viagem.nome=v.trim().slice(0,30);
     else if(k==="teto")f.viagem.teto=isFinite(x)&&x>=0?x:0;
     else if(k==="mes"){if(v)f.viagem.mes=v}
     else if(k==="ini")f.viagem.inicio=v||null;
@@ -235,7 +248,11 @@ function actions(c){
   return{
     finSel:d=>{ui.sel=+d.i;ctx.render()},
     finTab:d=>{if(SEC[d.t]){ui.tab=d.t;ui.open=null;ctx.render()}},
-    finGasto:()=>{ui.tab="variaveis";ui.open="variaveis:new";ctx.go("fcontas")},
+    finGasto:()=>{ui.dest="variaveis";ctx.go("flancar")},
+    finLancar:()=>{ui.dest=ui.tab;ctx.go("flancar")},
+    finDest:d=>{if(DEFROT[d.t]){ui.dest=d.t;ctx.render()}},
+    finLCancel:()=>ctx.go("fresumo"),
+    finLSave:()=>{const S=SEC[ui.dest],doc={};let ok=true;S.cols.forEach(c=>{const el=document.getElementById("ff_"+c.k),v=parse(c,el?el.value:"");if(!valid(c,v)){ok=false;return}Object.assign(doc,c.set(v))});if(!ok)return ctx.toast("Preencha os campos com valores válidos");F()[ui.dest].push({id:ctx.uid(),...doc});ui.tab=ui.dest;ui.open=null;ctx.save();ctx.queueState();ctx.toast("Adicionado em "+rot(ui.dest));ctx.go("fresumo")},
     finAdd:()=>{ui.open=ui.open===ui.tab+":new"?null:ui.tab+":new";ctx.render()},
     finOpen:d=>{const k=ui.tab+":"+d.id;ui.open=ui.open===k?null:k;ctx.render()},
     finCancel:()=>{ui.open=null;ctx.render()},
@@ -252,5 +269,5 @@ function actions(c){
     finImp:()=>importText(document.getElementById("fi_txt").value)
   };
 }
-window.Fin={objNome,importText,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
+window.Fin={vLancarFin,objNome,importText,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
 })();

@@ -568,7 +568,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,fotocrop:vFotoCrop,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,fotocrop:vFotoCrop,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),flancar:()=>page(Fin.vLancarFin(),{back:"fresumo"}),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
