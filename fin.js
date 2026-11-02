@@ -136,23 +136,27 @@ let ctx=null;
 const F=()=>ctx.S.fin;
 
 /* ---------- Telas (devolvem HTML; o app.js coloca no page()) ---------- */
-const isCard=k=>{const c=(F().cfg&&F().cfg.cart)||{};return k in c?!!c[k]:(k==="parcelas"||k==="recorrentes")};
 const cardNome=()=>String((F().cfg&&F().cfg.cartNome)||"").trim().slice(0,24)||"Cartão de crédito";
+const pastas=()=>[{id:"cartao",nome:cardNome()}].concat(((F().cfg&&F().cfg.pastas)||[]).filter(p=>p&&p.id&&p.nome));
+const isDiv=k=>k==="sophia"||(grp(k)&&grp(k).tipo==="dividido");
+const pastaDe=k=>{const c=F().cfg||{};let p=c.pasta&&c.pasta[k];if(p===undefined)p=(c.cart&&k in c.cart)?(c.cart[k]?"cartao":""):(isDiv(k)?"":"cartao");return p&&pastas().some(x=>x.id===p)?p:""};
 const SEGN=()=>{const s=[[rot("parcelas"),r=>r.par,"var(--ac)","parcelas"],[rot("recorrentes"),r=>r.rec,"#7fa3db","recorrentes"],[rot("sophia"),r=>r.soph,"#e0aa5c","sophia"],[rot("variaveis"),r=>r.vari,"#ab92d6","variaveis"]];grupos(F()).filter(g=>g.tipo!=="entrada").forEach((g,i)=>s.push([g.nome,r=>r.ext[g.id]||0,PAL[i%PAL.length],g.id]));return s};
 function quebra(r,dots){
-  const S=SEGN().filter(x=>x[1](r)>0),cd=S.filter(x=>isCard(x[3])),ot=S.filter(x=>!isCard(x[3]));
+  const S=SEGN().filter(x=>x[1](r)>0);
   const sw=c=>dots?`<span class="sw" style="background:${c}"></span>`:"";
   const row=(x,ind)=>`<div class="lg" style="${ind?"padding-left:14px;":""}">${sw(x[2])}<span class="mu">${esc(x[0])}</span><b>${brl(x[1](r))}</b></div>`;
-  const tc=cd.reduce((a,x)=>a+x[1](r),0);
-  return (cd.length?`<div class="lg" style="font-size:15px"><b style="margin:0">${esc(cardNome())}</b><b>${brl(tc)}</b></div>${cd.map(x=>row(x,1)).join("")}`:"")+(ot.length?(cd.length?`<div style="height:4px"></div>`:"")+ot.map(x=>row(x,0)).join(""):"");
+  let h="";
+  pastas().forEach(p=>{const it=S.filter(x=>pastaDe(x[3])===p.id);if(!it.length)return;h+=`<div class="lg" style="font-size:15px;margin-top:${h?8:0}px"><b style="margin:0">📁 ${esc(p.nome)}</b><b>${brl(it.reduce((a,x)=>a+x[1](r),0))}</b></div>${it.map(x=>row(x,1)).join("")}`});
+  const lo=S.filter(x=>pastaDe(x[3])==="");
+  if(lo.length)h+=`<div style="height:${h?8:0}px"></div>`+lo.map(x=>row(x,0)).join("");
+  return h;
 }
 const line=(k,v,cls="")=>`<div class="fl ${cls}"><span class="mu">${k}</span><b>${v}</b></div>`;
 
 function vResumo(){
   const f=F(),now=NOW(),head=`<div class="top"><div><div class="mu">${MESL[now%12]} de ${Math.floor(now/12)}</div><h1>Finanças</h1></div></div>`;
   if(empty(f))return head+`<div class="card"><b>Ainda não há dados.</b><p class="mu" style="margin:6px 0 14px;font-size:14px">Comece lançando uma entrada na aba Contas.</p><button class="btn" data-a="go" data-v="fcontas">Ir para Contas</button></div>`;
-  const all=calc(f),rows=all.slice(0,12),r0=rows[0],base=Math.max(r0.ent,r0.out)||1,sel=Math.min(ui.sel,11),r=rows[sel];
-  const maxAbs=Math.max(1,...rows.map(x=>Math.abs(x.saldo)));
+  const all=calc(f),rows=all.slice(0,12),r0=rows[0],base=Math.max(r0.ent,r0.out)||1,r=r0;
   const ends=f.parcelas.filter(p=>endIdx(p)===r.m).map(p=>p.nome),notes=[];
   if(ends.length)notes.push("Última parcela: "+esc(ends.join(", ")));
   if(r.reaj)notes.push("Reajuste dos gastos divididos passa a valer neste mês");
@@ -163,12 +167,7 @@ function vResumo(){
     <div class="mu" style="font-size:14px;margin-top:4px">Previsto no mês: entram ${brl(r0.ent)} e saem ${brl(r0.out)}</div>
     <div class="stack" role="img" aria-label="Divisão das saídas do mês">${SEGN().map(([n,g,c])=>g(r0)>0?`<i style="width:${g(r0)/base*100}%;background:${c}"></i>`:"").join("")}</div>
     <div class="legd">${quebra(r0,true)}</div><div class="mu" style="font-size:13px;margin-top:12px">Toque para lançar um gasto ›</div></button>
-  ${t.list?`<button class="card tripc" data-a="go" data-v="fviagem"><div class="lbl" style="margin-top:0">${esc(objNome(f))} · ${MESL[t.ti%12]} · poupança prevista</div><div class="fbig ${t.total<0?"bad":"good"}" style="font-size:30px">${brl(t.total)}</div><div class="mu" style="font-size:13px;margin-top:2px">${t.list.length} ${t.list.length>1?"meses":"mês"} de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} ›</div></button>`:""}
-  <div class="card"><h2 style="margin-top:0">Saldo mês a mês</h2>
-    <div class="fchart">${rows.map((x,k)=>`<button class="fcol" data-a="finSel" data-i="${k}" aria-pressed="${k===sel}" aria-label="${lab(x.m)}, saldo ${brl(x.saldo)}"><span class="tip">${k===sel?compact(x.saldo):""}</span><span class="fb ${x.saldo<0?"neg":""}" style="height:${Math.max(6,Math.round(Math.abs(x.saldo)/maxAbs*110))}px"></span><span class="fm">${MES[x.m%12]}</span></button>`).join("")}</div>
-    <div class="fdet"><b style="font-size:16px">${longLab(r.m)}</b>
-      ${line(rot("entradas"),brl(r.ent))}<div class="legd" style="margin:6px 0">${quebra(r,false)}</div>${line("Saldo",brl(r.saldo),"tot "+(r.saldo<0?"bad":"good"))}
-      ${notes.length?`<ul class="notes">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:""}</div></div>`;
+  ${t.list?`<button class="card tripc" data-a="go" data-v="fviagem"><div class="lbl" style="margin-top:0">${esc(objNome(f))} · ${MESL[t.ti%12]} · poupança prevista</div><div class="fbig ${t.total<0?"bad":"good"}" style="font-size:30px">${brl(t.total)}</div><div class="mu" style="font-size:13px;margin-top:2px">${t.list.length} ${t.list.length>1?"meses":"mês"} de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} ›</div></button>`:""}`;
 }
 
 function form(tab,row){
@@ -193,12 +192,15 @@ function vContas(){
 }
 
 function vGerir(){
-  const f=F(),tabs=allTabs(),cartOpt=(k,sel)=>`<select data-fin="cart" data-rk="${esc(k)}" aria-label="Entra no ${esc(cardNome())}?"><option value="1"${sel?" selected":""}>Sim, é do ${esc(cardNome().toLowerCase())}</option><option value="0"${sel?"":" selected"}>Não, é à parte</option></select>`;
-  const pode=k=>baseOf(k)!=="entradas";
-  return `<h1 style="margin-bottom:4px">Gerenciar contas</h1><p class="mu" style="font-size:13px;margin:0 0 12px">Mude nomes, crie ou remova contas. Os lançamentos ficam em Contas.</p>
-  <div class="card"><div class="fld"><label for="g_cart">Nome do grupo de cartão</label><input id="g_cart" type="text" maxlength="24" data-fin="cartnome" value="${esc(cardNome())}"></div><p class="mu" style="font-size:13px;margin:8px 0 0">No Resumo, tudo que você marcar como "do cartão" aparece somado sob este nome, com as categorias dentro.</p></div>
-  <div class="card flush">${tabs.map(k=>`<div class="fatrow"><div class="fld"><label for="gn_${esc(k)}">Nome da conta</label><input id="gn_${esc(k)}" type="text" maxlength="24" data-fin="rot" data-rk="${esc(k)}" value="${esc(rot(k))}"></div>${pode(k)?`<div class="fld" style="margin-top:8px">${cartOpt(k,isCard(k))}</div>`:""}${DEFROT[k]?"":`<button class="lk fdel" data-a="finGrupoDel" data-id="${esc(k)}" style="margin-top:8px">Remover esta conta</button>`}</div>`).join("")}</div>
-  <div class="card"><b>Nova conta</b><p class="mu" style="font-size:13px;margin:4px 0 10px">Crie com o nome que quiser (Saúde, Pets, Carro...).</p><div class="fld"><label for="gn_nome">Nome</label><input id="gn_nome" type="text" maxlength="24" placeholder="Ex.: Saúde, Pets, Carro"></div><div class="fld" style="margin-top:10px"><label for="gn_tipo">Como ela funciona</label><select id="gn_tipo">${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join("")}</select></div><div class="fld" style="margin-top:10px"><label for="gn_cart">É do ${esc(cardNome().toLowerCase())}?</label><select id="gn_cart"><option value="1">Sim</option><option value="0" selected>Não</option></select></div><div class="frow" style="margin-top:12px"><button class="btn" data-a="finGrupoSave">Criar conta</button></div></div>`;
+  const tabs=allTabs(),P=pastas(),pode=k=>baseOf(k)!=="entradas";
+  const pOpt=k=>`<label class="mu" style="font-size:12px" for="pp_${esc(k)}">Fica na pasta</label><select id="pp_${esc(k)}" data-fin="pasta" data-rk="${esc(k)}">${P.map(p=>`<option value="${esc(p.id)}"${pastaDe(k)===p.id?" selected":""}>📁 ${esc(p.nome)}</option>`).join("")}<option value=""${pastaDe(k)===""?" selected":""}>Nenhuma (fica solta)</option></select>`;
+  return `<h1 style="margin-bottom:4px">Gerenciar contas</h1><p class="mu" style="font-size:13px;margin:0 0 12px">Aqui você organiza tudo. Os lançamentos ficam em Contas.</p>
+  <div class="lbl" style="margin-top:0">Pastas</div><p class="mu" style="font-size:13px;margin:0 0 8px">Uma pasta soma as contas que estão dentro dela no Resumo (ex.: Cartão de crédito, com parcelas, mercado etc. dentro).</p>
+  <div class="card flush">${P.map((p,n)=>`<div class="fatrow"><div class="fld"><label for="pn_${esc(p.id)}">Nome da pasta</label><input id="pn_${esc(p.id)}" type="text" maxlength="24" data-fin="pastanome" data-rk="${esc(p.id)}" value="${esc(p.nome)}"></div>${n?`<button class="lk fdel" data-a="finPastaDel" data-id="${esc(p.id)}" style="margin-top:8px">Remover pasta</button>`:""}</div>`).join("")}
+  <div class="fatrow"><div class="fld"><label for="pn_novo">Nova pasta</label><input id="pn_novo" type="text" maxlength="24" placeholder="Ex.: Casa, Filha, Carro"></div><button class="btn" data-a="finPastaNova" style="margin-top:8px">Criar pasta</button></div></div>
+  <div class="lbl">Contas</div>
+  <div class="card flush">${tabs.map(k=>`<div class="fatrow"><div class="fld"><label for="gn_${esc(k)}">Nome da conta</label><input id="gn_${esc(k)}" type="text" maxlength="24" data-fin="rot" data-rk="${esc(k)}" value="${esc(rot(k))}"></div>${pode(k)?`<div class="fld" style="margin-top:8px">${pOpt(k)}</div>`:""}${DEFROT[k]?"":`<button class="lk fdel" data-a="finGrupoDel" data-id="${esc(k)}" style="margin-top:8px">Remover esta conta</button>`}</div>`).join("")}</div>
+  <div class="card"><b>Nova conta</b><p class="mu" style="font-size:13px;margin:4px 0 10px">Crie com o nome que quiser (Saúde, Pets, Carro...).</p><div class="fld"><label for="gn_nome">Nome</label><input id="gn_nome" type="text" maxlength="24" placeholder="Ex.: Saúde, Pets, Carro"></div><div class="fld" style="margin-top:10px"><label for="gn_tipo">Como ela funciona</label><select id="gn_tipo">${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join("")}</select></div><div class="fld" style="margin-top:10px"><label for="gn_cart">Em qual pasta?</label><select id="gn_cart">${P.map(p=>`<option value="${esc(p.id)}">📁 ${esc(p.nome)}</option>`).join("")}<option value="">Nenhuma (fica solta)</option></select></div><div class="frow" style="margin-top:12px"><button class="btn" data-a="finGrupoSave">Criar conta</button></div></div>`;
 }
 
 function vLancarFin(){
@@ -328,7 +330,7 @@ function aplicarFatura(){
   f.variaveis=f.variaveis.filter(v=>v.fat!==x.mes);
   if(f.extra)Object.keys(f.extra).forEach(k=>{f.extra[k]=f.extra[k].filter(v=>v.fat!==x.mes)});
   let nP=0,nC=0,nN=0;
-  const grupoDe=nome=>{let g=grupos(f).find(g=>g.tipo==="avulso"&&g.nome.toLowerCase()===nome.toLowerCase());if(!g){g={id:"g"+ctx.uid().replace(/-/g,"").slice(0,12),nome:nome.slice(0,24),tipo:"avulso"};f.grupos=[...grupos(f),g];(f.extra=f.extra||{})[g.id]=[];f.cfg.cart={...(f.cfg.cart||{}),[g.id]:true}}return g};
+  const grupoDe=nome=>{let g=grupos(f).find(g=>g.tipo==="avulso"&&g.nome.toLowerCase()===nome.toLowerCase());if(!g){g={id:"g"+ctx.uid().replace(/-/g,"").slice(0,12),nome:nome.slice(0,24),tipo:"avulso"};f.grupos=[...grupos(f),g];(f.extra=f.extra||{})[g.id]=[];}return g};
   x.itens.forEach(it=>{
     const a=it.acao;if(a==="ign"||a==="rec")return;
     if(it.m!=null){
@@ -394,8 +396,8 @@ function actions(c){
     if(k==="fatacao"){const it=ui.fat&&ui.fat.itens[+e.target.dataset.i];if(it){it.acao=v;ctx.render()}return}
     if(k==="fatmes"){if(ui.fat&&/^\d{4}-\d{2}$/.test(v)){ui.fat.mes=v;ctx.render()}return}
     if(k==="fatdia"){if(ui.fat){const d=parseInt(v,10);ui.fat.dia=d>=1&&d<=31?d:25;ctx.render()}return}
-    if(k==="cartnome"){f.cfg.cartNome=v.trim().slice(0,24)}
-    else if(k==="cart"){f.cfg.cart={...(f.cfg.cart||{}),[e.target.dataset.rk]:v==="1"}}
+    if(k==="pastanome"){const id=e.target.dataset.rk,nn=v.trim().slice(0,24);if(nn){if(id==="cartao")f.cfg.cartNome=nn;else{const p=(f.cfg.pastas||[]).find(p=>p.id===id);if(p)p.nome=nn}}}
+    else if(k==="pasta"){f.cfg.pasta={...(f.cfg.pasta||{}),[e.target.dataset.rk]:v}}
     else if(k==="rot"){const rk=e.target.dataset.rk,nn=v.trim().slice(0,24);if(DEFROT[rk])f.cfg.rot={...(f.cfg.rot||{}),[rk]:nn};else{const g=grp(rk);if(g&&nn)g.nome=nn}}
     else if(k==="nome")f.viagem.nome=v.trim().slice(0,30);
     else if(k==="teto")f.viagem.teto=isFinite(x)&&x>=0?x:0;
@@ -406,11 +408,12 @@ function actions(c){
     commit();
   });
   return{
-    finSel:d=>{ui.sel=+d.i;ctx.render()},
+    finPastaNova:()=>{const n=(document.getElementById("pn_novo").value||"").trim().slice(0,24),f=F();if(!n)return ctx.toast("Dê um nome à pasta");if(pastas().length>=8)return ctx.toast("Limite de pastas");if(pastas().some(p=>p.nome.toLowerCase()===n.toLowerCase()))return ctx.toast("Já existe uma pasta com esse nome");f.cfg.pastas=[...(f.cfg.pastas||[]),{id:"p"+ctx.uid().replace(/-/g,"").slice(0,10),nome:n}];commit()},
+    finPastaDel:d=>{const f=F(),p=(f.cfg.pastas||[]).find(x=>x.id===d.id);if(!p||!confirm("Remover a pasta "+p.nome+"? As contas dela ficam soltas."))return;f.cfg.pasta=Object.fromEntries(Object.entries(f.cfg.pasta||{}).map(([k,v])=>[k,v===d.id?"":v]));f.cfg.pastas=f.cfg.pastas.filter(x=>x.id!==d.id);commit()},
     finTab:d=>{if(allTabs().includes(d.t)){ui.tab=d.t;ui.open=null;ctx.render()}},
     finGerir:()=>ctx.go("fgerir"),
-    finGrupoSave:()=>{const n=(document.getElementById("gn_nome").value||"").trim().slice(0,24),t=document.getElementById("gn_tipo").value;if(!n)return ctx.toast("Dê um nome ao grupo");if(!TIPOS[t])return;const f=F();if(grupos(f).length>=20)return ctx.toast("Limite de 20 grupos");if(Object.keys(DEFROT).some(k=>rot(k).toLowerCase()===n.toLowerCase())||grupos(f).some(g=>g.nome.toLowerCase()===n.toLowerCase()))return ctx.toast("Já existe um grupo com esse nome");const id="g"+ctx.uid().replace(/-/g,"").slice(0,12);f.grupos=[...grupos(f),{id,nome:n,tipo:t}];(f.extra=f.extra||{})[id]=[];f.cfg.cart={...(f.cfg.cart||{}),[id]:document.getElementById("gn_cart").value==="1"};ui.tab=id;commit()},
-    finGrupoDel:d=>{const g=grp(d.id);if(!g||!confirm("Excluir o grupo "+g.nome+" e tudo que está nele?"))return;const f=F();f.grupos=grupos(f).filter(x=>x.id!==d.id);if(f.extra)delete f.extra[d.id];ui.tab="parcelas";ui.open=null;if(f.cfg.cart)delete f.cfg.cart[d.id];commit()},
+    finGrupoSave:()=>{const n=(document.getElementById("gn_nome").value||"").trim().slice(0,24),t=document.getElementById("gn_tipo").value;if(!n)return ctx.toast("Dê um nome ao grupo");if(!TIPOS[t])return;const f=F();if(grupos(f).length>=20)return ctx.toast("Limite de 20 grupos");if(Object.keys(DEFROT).some(k=>rot(k).toLowerCase()===n.toLowerCase())||grupos(f).some(g=>g.nome.toLowerCase()===n.toLowerCase()))return ctx.toast("Já existe um grupo com esse nome");const id="g"+ctx.uid().replace(/-/g,"").slice(0,12);f.grupos=[...grupos(f),{id,nome:n,tipo:t}];(f.extra=f.extra||{})[id]=[];f.cfg.pasta={...(f.cfg.pasta||{}),[id]:document.getElementById("gn_cart").value};ui.tab=id;commit()},
+    finGrupoDel:d=>{const g=grp(d.id);if(!g||!confirm("Excluir o grupo "+g.nome+" e tudo que está nele?"))return;const f=F();f.grupos=grupos(f).filter(x=>x.id!==d.id);if(f.extra)delete f.extra[d.id];ui.tab="parcelas";ui.open=null;if(f.cfg.pasta)delete f.cfg.pasta[d.id];commit()},
     fatOk:()=>aplicarFatura(),
     fatCancel:()=>{ui.fat=null;ctx.go("fresumo")},
     finGasto:()=>{ui.dest="variaveis";ctx.go("flancar")},
