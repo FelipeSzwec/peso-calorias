@@ -141,7 +141,7 @@ function vOnb(){
 function vLock(){return `<div class="lock"><div class="logo" style="margin:0 auto 18px">P</div><h1>Digite seu PIN</h1><p class="mu" id="lockMsg">${Date.now()<blockedUntil?"Muitas tentativas. Aguarde um pouco.":"&nbsp;"}</p>${pad()}</div>`}
 function weekTot(){const hj=today();let tk=0,tg=0,n=0;week().forEach(d=>{const k=sum(ents(d)).k,D=day(d);if(d<hj&&k>0){const g=D.gasto||metaFor(D.tipo||"Descanso").gasto;if(g){tg+=g;tk+=k;n++}}});return{tk,tg,n,res:tk-tg}}
 const tipoLbl=D=>(D.tipo||"Descanso")==="Treino"?"treino":"descanso";
-function ringCard(t,m,D){
+function ringCard(t,m,D,mini){
   const g=D.gasto||m.gasto,plan=m.k>0,ref=plan?m.k:g,pct=ref?t.k/ref:0,falta=m.k-t.k,s=t.k-g,hj=cur===today(),C=2*Math.PI*50;
   const msg=plan?(falta>=0?`Faltam ${fmt(falta)} kcal`:`Passou ${fmt(-falta)} kcal`):(g?(t.k?`${hj?"Saldo parcial":"Saldo"}: ${s>0?"+":s<0?"−":""}${fmt(Math.abs(s))} kcal`:"Nenhuma refeição lançada"):"Complete o cadastro em Ajustes");
   const arc=(p,c)=>p>0?`<circle cx="60" cy="60" r="50" fill="none" stroke="${c}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${(Math.max(p,.004)*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)"/>`:"";
@@ -152,8 +152,8 @@ function ringCard(t,m,D){
   const wk=weekTot(),dayLbl=hj?"Hoje":cur.slice(8)+"/"+cur.slice(5,7);
   const word=v=>v<0?"Déficit":v>0?"Superávit":"Equilíbrio";
   const blk=(titulo,ing,gas,res,parcial)=>`<div class="blk"><b>${titulo}</b><div class="br"><span>Ingeridas</span><b>${ing!=null?fmt(ing):"—"}</b></div><div class="br"><span>Gastas</span><b>${gas?fmt(gas):"—"}</b></div><div class="br"><span>${res==null?"Déficit/superávit":word(res)+(parcial?" parcial":"")}</span><b>${res==null?"—":fmt(Math.abs(res))}</b></div></div>`;
-  return `<div class="card" style="padding:22px 18px;text-align:center"><div class="ring">${svg}<div><b>${fmt(t.k)}</b><small>${ref?`de ${fmt(ref)} kcal${plan?"":" gastas"}`:"kcal ingeridas"}</small></div></div>${leg}<div class="${plan?(falta<0?"bad":"good"):(!t.k||s<=0?"mu":"good")}" style="margin-top:12px;font-weight:600;font-size:14px">${msg}</div><div class="mu" style="font-size:11px;margin-top:4px">${m.plano?"Meta do seu plano alimentar":m.auto?"Meta automática: estimativa pelo seu peso e objetivo":"Sem plano alimentar importado: comparando com o gasto do dia"}</div>
-  <div class="dual">${blk(dayLbl,t.k,g,t.k&&g?s:null,hj)}${blk("Semana",wk.n?wk.tk:null,wk.n?wk.tg:null,wk.n?wk.res:null,false)}</div><div class="mu" style="font-size:11px;margin-top:8px">A semana soma só os dias já fechados, sem o dia de hoje.</div></div>`;
+  return `<div class="card" style="padding:${mini?"16px 18px":"22px 18px"};text-align:center"><div class="ring${mini?" sm":""}">${svg}<div><b>${fmt(t.k)}</b><small>${ref?`de ${fmt(ref)} kcal${plan?"":" gastas"}`:"kcal ingeridas"}</small></div></div>${leg}<div class="${plan?(falta<0?"bad":"good"):(!t.k||s<=0?"mu":"good")}" style="margin-top:12px;font-weight:600;font-size:14px">${msg}</div>${mini?"":`<div class="mu" style="font-size:11px;margin-top:4px">${m.plano?"Meta do seu plano alimentar":m.auto?"Meta automática: estimativa pelo seu peso e objetivo":"Sem plano alimentar importado: comparando com o gasto do dia"}</div>`}
+  ${mini?`<div class="mu" style="font-size:13px;margin-top:8px">${t.k&&g?"Hoje "+word(s).toLowerCase()+" "+fmt(Math.abs(s))+(hj?" (parcial)":""):"Hoje —"} · Semana ${wk.n?word(wk.res).toLowerCase()+" "+fmt(Math.abs(wk.res)):"—"}</div>`:`<div class="dual">${blk(dayLbl,t.k,g,t.k&&g?s:null,hj)}${blk("Semana",wk.n?wk.tk:null,wk.n?wk.tg:null,wk.n?wk.res:null,false)}</div><div class="mu" style="font-size:11px;margin-top:8px">A semana soma só os dias já fechados, sem o dia de hoje.</div>`}</div>`;
 }
 function vHoje(){
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),es=ents(cur),t=sum(es),dt=new Date(cur+"T12:00:00");
@@ -556,12 +556,15 @@ function vInicio(){
   cur=today();
   const D=day(cur),tipo=D.tipo||"Descanso",m=metaFor(tipo),t=sum(ents(cur)),g=D.gasto||m.gasto,s=t.k-g,has=t.k>0,fr=Fin.homeSum(S.fin),h=new Date().getHours();
   const pesos=Object.entries(S.days).filter(([,x])=>x.peso).sort((a,b)=>a[0]<b[0]?-1:1),pe=pesos.length?pesos[pesos.length-1][1].peso:null;
-  const sg=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v)),row=(k,v,c="")=>`<div class="mrow"><span class="mu">${k}</span><b class="${c}">${v}</b></div>`;
+  const hr=(v,ic,nm,val,cl,sub,al)=>`<button class="hrow" data-a="go" data-v="${v}"><span class="mi">${ic}</span><span class="hmid"><b>${nm}</b><small class="mu">${sub}</small>${al?`<small class="due">${al}</small>`:""}</span><span class="hval ${cl}">${val}</span><span class="mu">›</span></button>`,sg=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v)),row=(k,v,c="")=>`<div class="mrow"><span class="mu">${k}</span><b class="${c}">${v}</b></div>`;
   return page(`<div class="top">${avatar()}<div class="tt"><div class="mu">${new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</div><h1>${h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}${S.profile?.nome?", "+esc(S.profile.nome):""}</h1></div><button class="gear" data-a="go" data-v="ajustes" aria-label="Ajustes">⚙</button></div>
-  ${ringCard(t,m,D)}
-  <button class="mc" data-a="go" data-v="hoje"><div class="mh"><span class="mi">🥗</span><b>Nutrição</b><span class="mu">›</span></div>${row("Calorias hoje",m.k?fmt(t.k)+" de "+fmt(m.k)+" kcal":fmt(t.k)+" kcal")}${m.k?`<div class="bar"><i style="width:${Math.min(100,t.k/m.k*100)}%"></i></div>`:""}${row("Proteína",fmt(t.p)+(m.p?" de "+fmt(m.p):"")+" g")}${row("Peso atual",pe?fmt(pe,1)+" kg":"—")}${pesoDue()?`<div class="due">⚖ ${pesoDue()}</div>`:""}</button>
-  <button class="mc" data-a="go" data-v="treino"><div class="mh"><span class="mi">🏋️</span><b>Treino</b><span class="mu">›</span></div>${row("Dia de hoje",tipo==="Treino"?"Treino":"Descanso")}${row("Treino",esc(D.treino||"—"))}${row("Gasto do dia",g?fmt(g)+" kcal":"—")}</button>
-  <button class="mc" data-a="go" data-v="fresumo"><div class="mh"><span class="mi">💰</span><b>Finanças</b><span class="mu">›</span></div>${fr?row("Entradas de "+fr.mes,Fin.brl(fr.ent))+row("Saídas de "+fr.mes,Fin.brl(fr.out))+row("Saldo de "+fr.mes,Fin.brl(fr.saldo),fr.saldo<0?"bad":"good"):row("Contas do mês","Configurar")}</button><button class="mc" data-a="go" data-v="saude"><div class="mh"><span class="mi">🩺</span><b>Saúde</b><span class="mu">›</span></div>${(()=>{const u=saudeOrd()[0],pr=saudeProx(),av=saudeAviso();return u?row("Último check-up",dmy(u.data))+row("Próximo",dmy(pr.data),av?(pr.dias<0?"bad":"good"):"")+(av?`<div class="${pr.dias<0?"bad":"good"}" style="font-size:12px;margin-top:6px;font-weight:600">${av}</div>`:""):row("Check-up","Enviar exames")})()}</button><div class="mc soon" aria-disabled="true"><div class="mh" style="margin:0"><span class="mi">📅</span><b>Agenda</b><span class="soonb">Em breve</span></div></div>`,{nonav:true});
+  ${ringCard(t,m,D,true)}
+  <div class="mc hlist">
+  ${hr("hoje","🥗","Nutrição",m.k?fmt(t.k)+" de "+fmt(m.k)+" kcal":fmt(t.k)+" kcal","","Proteína "+fmt(t.p)+(m.p?" de "+fmt(m.p):"")+" g · Peso "+(pe?fmt(pe,1)+" kg":"—"),pesoDue()?"⚖ "+pesoDue():"")}
+  ${hr("treino","🏋️","Treino",tipo==="Treino"?"Treino":"Descanso","",(D.treino?esc(D.treino)+" · ":"")+"Gasto "+(g?fmt(g)+" kcal":"—"),"")}
+  ${hr("fresumo","💰","Finanças",fr?Fin.brl(fr.saldo):"Configurar",fr?(fr.saldo<0?"bad":"good"):"",fr?"Entram "+Fin.brl(fr.ent)+" · Saem "+Fin.brl(fr.out):"Contas do mês","")}
+  ${(()=>{const u=saudeOrd()[0],pr=saudeProx(),av=saudeAviso();return hr("saude","🩺","Saúde",u?"Próximo "+dmy(pr.data):"Enviar exames",av?(pr.dias<0?"bad":"good"):"",u?"Último check-up "+dmy(u.data):"Check-up",av||"")})()}
+  </div>`,{nonav:true});
 }
 function render(){
   autoTick();
