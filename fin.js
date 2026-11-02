@@ -160,7 +160,7 @@ function vViagem(){
   const f=F(),all=calc(f),t=trip(f,all),c=f.viagem||{};
   const fields=`<div class="fld" style="margin-top:16px"><label for="t_nome">Nome do objetivo</label><input id="t_nome" type="text" maxlength="30" placeholder="Ex.: Viagem, Reserva, Carro" data-fin="nome" value="${esc(c.nome||"")}"></div><div class="grid1" style="margin-top:12px">
     <div class="fld"><label for="t_ini">Começa a poupar em</label><input id="t_ini" type="month" data-fin="ini" value="${esc(c.inicio||"")}"></div>
-    <div class="fld"><label for="t_teto">Teto do dia a dia (R$/mês)</label><input id="t_teto" type="number" step="50" min="0" inputmode="decimal" data-fin="teto" value="${esc(c.teto??"")}"></div>
+    <div class="fld"><label for="t_teto">Limite de gastos do dia a dia (R$/mês)</label><input id="t_teto" type="number" step="50" min="0" inputmode="decimal" data-fin="teto" value="${esc(c.teto??"")}"></div>
     <div class="fld"><label for="t_mes">Mês do objetivo</label><input id="t_mes" type="month" data-fin="mes" value="${esc(c.mes||"")}"></div>
     <div class="fld"><label for="t_meta">Meta (opcional, R$)</label><input id="t_meta" type="number" step="100" min="0" inputmode="decimal" data-fin="meta" value="${esc(c.meta??"")}"></div></div>`;
   const head=`<div class="top"><div><div class="mu">${t.ti!=null?"Plano de poupança":"Planejamento"}</div><h1>${t.ti!=null?objNome(f)+" · "+MESL[t.ti%12]+" de "+Math.floor(t.ti/12):objNome(f)}</h1></div></div>`;
@@ -169,9 +169,8 @@ function vViagem(){
   const fk=Object.keys(t.free).map(Number).sort((a,b)=>a-b);
   return head+`<div class="card"><div class="lbl" style="margin-top:0">Poupança prevista até ${MESL[(t.ti-1)%12]}</div>
     <div class="fbig ${t.total<0?"bad":"good"}">${brl(t.total)}</div>
-    <div class="mu" style="font-size:14px;margin-top:6px">Com teto de ${brl(t.teto)} por mês no dia a dia, de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} (${t.list.length} ${t.list.length>1?"meses":"mês"}). Conta só a entrada fixa.</div>
+    <div class="mu" style="font-size:14px;margin-top:6px">É uma previsão, não um valor guardado: quanto sobra de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} (${t.list.length} ${t.list.length>1?"meses":"mês"}) se você gastar até ${brl(t.teto)} por mês no dia a dia. Conta só a entrada fixa, depois de parcelas, recorrentes e Sophia. Muda quando você lança uma compra parcelada.</div>
     ${mx!=null?`<div class="callout">${mx<0?`Só com a entrada fixa, a meta de ${brl(t.meta)} não fecha. O máximo possível, sem gastar nada no dia a dia, é ${brl(t.base)}.`:`Para chegar a ${brl(t.meta)}, o dia a dia pode custar no máximo ${brl(mx)} por mês. ${t.total>=t.meta?"Com o teto atual, você chega lá.":"Com o teto atual, faltam "+brl(t.meta-t.total)+"."}`}</div>`:""}
-    ${t.pendN>0?`<p class="mu" style="font-size:13px;margin:10px 0 0">Até ${lab(t.ini-1)} nada é poupado: sobram ${brl(t.pend)} para as pendências, já descontando os variáveis lançados.</p>`:""}
     ${fields}
     <details><summary>Quanto separar por mês</summary><div class="tri"><span class="mu">Mês</span><span class="mu r">Separar</span><span class="mu r">Acumulado</span>${t.list.map(x=>`<span>${lab(x.m)}</span><span class="r ${x.sep<0?"bad":""}">${brl(x.sep)}</span><span class="r">${brl(x.acc)}</span>`).join("")}</div><p class="mu" style="font-size:13px">Separe no dia em que o dinheiro entra, antes de gastar. O valor sobe sozinho quando uma parcela acaba.</p></details>
     <details><summary>Parcelas que acabam e liberam dinheiro</summary>${fk.length?fk.map(k=>`<div class="fl"><span class="mu">${lab(k)} · ${esc(t.free[k].n.join(", "))}</span><b class="good">+${brl(t.free[k].v)}</b></div>`).join(""):`<p class="mu" style="font-size:13px">Nenhuma parcela termina antes do mês do objetivo.</p>`}</details></div>`;
