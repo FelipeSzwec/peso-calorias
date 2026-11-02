@@ -41,7 +41,7 @@ function calc(F){
 }
 const empty=F=>!F.entradas.length&&!F.parcelas.length&&!F.recorrentes.length&&!F.sophia.length;
 const objNome=F=>String((F&&F.viagem&&F.viagem.nome)||"").trim()||"Objetivo";
-const homeSum=F=>{if(empty(F))return null;const all=calc(F),t=trip(F,all);return{saldo:all[0].saldo,nome:objNome(F),viagem:t.list?{total:t.total,mes:t.ti}:null}};
+const homeSum=F=>{if(empty(F))return null;const all=calc(F),t=trip(F,all);return{saldo:all[0].saldo,ent:all[0].ent,out:all[0].out,mes:MESL[all[0].m%12],nome:objNome(F),viagem:t.list?{total:t.total,mes:t.ti}:null}};
 const mesAtual=F=>empty(F)?null:calc(F)[0];
 
 function trip(F,all){
@@ -81,7 +81,7 @@ const SEC={
       {k:"valor",l:"Valor mensal",t:"money",get:r=>r.valor,set:v=>({valor:v})},
       {k:"obs",l:"Observação",t:"text",opt:1,w:1,get:r=>r.obs||"",set:v=>({obs:v})}],
     sum:rows=>"Por mês: <b>"+brl(sum(rows,r=>nv(r.valor)))+"</b>",none:"Nenhuma conta recorrente ainda."},
-  sophia:{l:"Sophia",sort:(a,b)=>nv(b.total)-nv(a.total),t:r=>r.nome,
+  sophia:{l:"Divididos",sort:(a,b)=>nv(b.total)-nv(a.total),t:r=>r.nome,
     s:r=>{let s="Total "+brl(r.total);if(r.novoTotal!=null&&r.novoTotal!=="")s+=" · após reajuste, sua metade: "+brl(nv(r.novoTotal)/2);return s},
     v:r=>brl(nv(r.total)/2),
     cols:[
@@ -89,7 +89,7 @@ const SEC={
       {k:"total",l:"Valor total hoje",t:"money",get:r=>r.total,set:v=>({total:v})},
       {k:"novoTotal",l:"Total após reajuste",t:"money",opt:1,get:r=>r.novoTotal,set:v=>({novoTotal:v})}],
     sum:rows=>{const a=sum(rows,r=>nv(r.total)/2),b=sum(rows,r=>(r.novoTotal!=null&&r.novoTotal!==""?nv(r.novoTotal):nv(r.total))/2);return"Sua metade: <b>"+brl(a)+"</b>"+(Math.abs(a-b)>.004?" → <b>"+brl(b)+"</b> após o reajuste":"")},
-    none:"Nenhum gasto da Sophia lançado."},
+    none:"Nenhum gasto dividido lançado."},
   entradas:{l:"Entradas",sort:(a,b)=>nv(b.valor)-nv(a.valor),t:r=>r.nome,s:()=>"",v:r=>brl(r.valor),
     cols:[
       {k:"nome",l:"Entrada",t:"text",w:1,get:r=>r.nome,set:v=>({nome:v})},
@@ -112,7 +112,7 @@ let ctx=null;
 const F=()=>ctx.S.fin;
 
 /* ---------- Telas (devolvem HTML; o app.js coloca no page()) ---------- */
-const SEG=[["Parcelas","par","var(--ac)"],["Recorrentes","rec","#7fa3db"],["Sophia","soph","#e0aa5c"],["Variáveis","vari","#ab92d6"]];
+const SEG=[["Parcelas","par","var(--ac)"],["Recorrentes","rec","#7fa3db"],["Divididos","soph","#e0aa5c"],["Variáveis","vari","#ab92d6"]];
 const line=(k,v,cls="")=>`<div class="fl ${cls}"><span class="mu">${k}</span><b>${v}</b></div>`;
 
 function vResumo(){
@@ -122,7 +122,7 @@ function vResumo(){
   const maxAbs=Math.max(1,...rows.map(x=>Math.abs(x.saldo)));
   const ends=f.parcelas.filter(p=>endIdx(p)===r.m).map(p=>p.nome),notes=[];
   if(ends.length)notes.push("Última parcela: "+esc(ends.join(", ")));
-  if(r.reaj)notes.push("Reajuste da Sophia passa a valer neste mês");
+  if(r.reaj)notes.push("Reajuste dos gastos divididos passa a valer neste mês");
   const t=trip(f,all);
   return head+`
   <div class="card"><div class="lbl" style="margin-top:0">Saldo de ${MESL[now%12]}</div>
@@ -134,7 +134,7 @@ function vResumo(){
   <div class="card"><h2 style="margin-top:0">Saldo mês a mês</h2>
     <div class="fchart">${rows.map((x,k)=>`<button class="fcol" data-a="finSel" data-i="${k}" aria-pressed="${k===sel}" aria-label="${lab(x.m)}, saldo ${brl(x.saldo)}"><span class="tip">${k===sel?compact(x.saldo):""}</span><span class="fb ${x.saldo<0?"neg":""}" style="height:${Math.max(6,Math.round(Math.abs(x.saldo)/maxAbs*110))}px"></span><span class="fm">${MES[x.m%12]}</span></button>`).join("")}</div>
     <div class="fdet"><b style="font-size:16px">${longLab(r.m)}</b>
-      ${line("Entradas",brl(r.ent))}${line("Parcelas",brl(r.par))}${line("Recorrentes",brl(r.rec))}${line("Sophia (sua metade)",brl(r.soph))}${line("Variáveis lançados",brl(r.vari))}${line("Saldo",brl(r.saldo),"tot "+(r.saldo<0?"bad":"good"))}
+      ${line("Entradas",brl(r.ent))}${line("Parcelas",brl(r.par))}${line("Recorrentes",brl(r.rec))}${line("Divididos (sua parte)",brl(r.soph))}${line("Variáveis lançados",brl(r.vari))}${line("Saldo",brl(r.saldo),"tot "+(r.saldo<0?"bad":"good"))}
       ${notes.length?`<ul class="notes">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:""}</div></div>`;
 }
 
@@ -151,7 +151,7 @@ function vContas(){
   return `<div class="top"><div><div class="mu">Lançamentos</div><h1>Contas</h1></div></div>
   <div class="chips">${TABS.map(c=>`<button data-a="finTab" data-t="${c}" class="${c===tab?"on":""}">${SEC[c].l}</button>`).join("")}</div>
   <div class="fhead"><span class="mu">${S.sum(rows)}</span><button class="btn" style="width:auto;padding:10px 16px;font-size:14px;border-radius:12px" data-a="finAdd">＋ Adicionar</button></div>
-  ${tab==="sophia"?`<div class="fld" style="margin-bottom:10px"><label for="fr">Reajuste vale a partir de</label><input id="fr" type="month" data-fin="reaj" value="${esc(f.cfg.reajusteMes||"")}"></div>`:""}
+  ${tab==="sophia"?`<p class="mu" style="font-size:13px;margin:0 0 10px">Gastos divididos com outra pessoa. O app considera 50% do total como a sua parte.</p><div class="fld" style="margin-bottom:10px"><label for="fr">Reajuste vale a partir de</label><input id="fr" type="month" data-fin="reaj" value="${esc(f.cfg.reajusteMes||"")}"></div>`:""}
   ${isNew?`<div class="card">${form(tab,null)}</div>`:""}
   ${rows.length?`<div class="card flush">${rows.map(r=>{const open=ui.open===tab+":"+r.id;return `<button class="row" data-a="finOpen" data-id="${esc(r.id)}" aria-expanded="${open}"><span class="n"><b ${open?'class="good"':""}>${esc(S.t(r))}</b>${S.s(r)?`<small>${esc(S.s(r))}</small>`:""}</span><b>${S.v(r)}</b></button>${S.prog?`<div class="bar" style="margin:-4px 16px 12px"><i style="width:${Math.round(S.prog(r)*100)}%"></i></div>`:""}${open?`<div style="padding:0 16px 14px">${form(tab,r)}</div>`:""}`}).join("")}</div>`:(isNew?"":`<p class="mu" style="padding:8px 4px">${S.none}</p>`)}`;
 }
@@ -169,7 +169,7 @@ function vViagem(){
   const fk=Object.keys(t.free).map(Number).sort((a,b)=>a-b);
   return head+`<div class="card"><div class="lbl" style="margin-top:0">Poupança prevista até ${MESL[(t.ti-1)%12]}</div>
     <div class="fbig ${t.total<0?"bad":"good"}">${brl(t.total)}</div>
-    <div class="mu" style="font-size:14px;margin-top:6px">É uma previsão, não um valor guardado: quanto sobra de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} (${t.list.length} ${t.list.length>1?"meses":"mês"}) se você gastar até ${brl(t.teto)} por mês no dia a dia. Conta só a entrada fixa, depois de parcelas, recorrentes e Sophia. Muda quando você lança uma compra parcelada.</div>
+    <div class="mu" style="font-size:14px;margin-top:6px">É uma previsão, não um valor guardado: quanto sobra de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} (${t.list.length} ${t.list.length>1?"meses":"mês"}) se você gastar até ${brl(t.teto)} por mês no dia a dia. Conta só a entrada fixa, depois de parcelas, recorrentes e gastos divididos. Muda quando você lança uma compra parcelada.</div>
     ${mx!=null?`<div class="callout">${mx<0?`Só com a entrada fixa, a meta de ${brl(t.meta)} não fecha. O máximo possível, sem gastar nada no dia a dia, é ${brl(t.base)}.`:`Para chegar a ${brl(t.meta)}, o dia a dia pode custar no máximo ${brl(mx)} por mês. ${t.total>=t.meta?"Com o teto atual, você chega lá.":"Com o teto atual, faltam "+brl(t.meta-t.total)+"."}`}</div>`:""}
     ${fields}
     <details><summary>Quanto separar por mês</summary><div class="tri"><span class="mu">Mês</span><span class="mu r">Separar</span><span class="mu r">Acumulado</span>${t.list.map(x=>`<span>${lab(x.m)}</span><span class="r ${x.sep<0?"bad":""}">${brl(x.sep)}</span><span class="r">${brl(x.acc)}</span>`).join("")}</div><p class="mu" style="font-size:13px">Separe no dia em que o dinheiro entra, antes de gastar. O valor sobe sozinho quando uma parcela acaba.</p></details>
