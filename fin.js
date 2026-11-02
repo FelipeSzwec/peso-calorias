@@ -125,11 +125,11 @@ function vResumo(){
   if(r.reaj)notes.push("Reajuste dos gastos divididos passa a valer neste mês");
   const t=trip(f,all);
   return head+`
-  <div class="card"><div class="lbl" style="margin-top:0">Saldo de ${MESL[now%12]}</div>
+  <button class="card tripc" data-a="finGasto" aria-label="Lançar um gasto"><div class="lbl" style="margin-top:0">Saldo de ${MESL[now%12]}</div>
     <div class="fbig ${r0.saldo<0?"bad":"good"}">${brl(r0.saldo)}</div>
     <div class="mu" style="font-size:14px;margin-top:4px">Entram ${brl(r0.ent)} e saem ${brl(r0.out)}</div>
     <div class="stack" role="img" aria-label="Divisão das saídas do mês">${SEG.map(([n,k,c])=>r0[k]>0?`<i style="width:${r0[k]/base*100}%;background:${c}"></i>`:"").join("")}</div>
-    <div class="legd">${SEG.map(([n,k,c])=>`<div class="lg"><span class="sw" style="background:${c}"></span><span class="mu">${n}</span><b>${brl(r0[k])}</b></div>`).join("")}</div></div>
+    <div class="legd">${SEG.map(([n,k,c])=>`<div class="lg"><span class="sw" style="background:${c}"></span><span class="mu">${n}</span><b>${brl(r0[k])}</b></div>`).join("")}</div><div class="mu" style="font-size:13px;margin-top:12px">Toque para lançar um gasto ›</div></button>
   ${t.list?`<button class="card tripc" data-a="go" data-v="fviagem"><div class="lbl" style="margin-top:0">${esc(objNome(f))} · ${MESL[t.ti%12]} · poupança prevista</div><div class="fbig ${t.total<0?"bad":"good"}" style="font-size:30px">${brl(t.total)}</div><div class="mu" style="font-size:13px;margin-top:2px">${t.list.length} ${t.list.length>1?"meses":"mês"} de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} ›</div></button>`:""}
   <div class="card"><h2 style="margin-top:0">Saldo mês a mês</h2>
     <div class="fchart">${rows.map((x,k)=>`<button class="fcol" data-a="finSel" data-i="${k}" aria-pressed="${k===sel}" aria-label="${lab(x.m)}, saldo ${brl(x.saldo)}"><span class="tip">${k===sel?compact(x.saldo):""}</span><span class="fb ${x.saldo<0?"neg":""}" style="height:${Math.max(6,Math.round(Math.abs(x.saldo)/maxAbs*110))}px"></span><span class="fm">${MES[x.m%12]}</span></button>`).join("")}</div>
@@ -235,6 +235,7 @@ function actions(c){
   return{
     finSel:d=>{ui.sel=+d.i;ctx.render()},
     finTab:d=>{if(SEC[d.t]){ui.tab=d.t;ui.open=null;ctx.render()}},
+    finGasto:()=>{ui.tab="variaveis";ui.open="variaveis:new";ctx.go("fcontas")},
     finAdd:()=>{ui.open=ui.open===ui.tab+":new"?null:ui.tab+":new";ctx.render()},
     finOpen:d=>{const k=ui.tab+":"+d.id;ui.open=ui.open===k?null:k;ctx.render()},
     finCancel:()=>{ui.open=null;ctx.render()},

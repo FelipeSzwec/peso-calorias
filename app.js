@@ -83,6 +83,9 @@ const b64=a=>btoa(String.fromCharCode(...new Uint8Array(a)));
 async function hashPin(pin,salt){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveBits"]);return b64(await crypto.subtle.deriveBits({name:"PBKDF2",salt:Uint8Array.from(atob(salt),c=>c.charCodeAt(0)),iterations:200000,hash:"SHA-256"},k,256))}
 async function storePin(pin){const salt=b64(crypto.getRandomValues(new Uint8Array(16)));S.settings.pinSalt=salt;S.settings.pinHash=await hashPin(pin,salt);save()}
 let fails=0,blockedUntil=0;
+const pinMin=()=>S.settings.pinTempo==null?1440:+S.settings.pinTempo;
+const pinExpirou=()=>{const m=pinMin();if(m===0)return true;let t=0;try{t=+localStorage.getItem("pc3_hid")||0}catch(e){}return!t||Date.now()-t>m*60000};
+const pinStamp=()=>{try{localStorage.setItem("pc3_hid",String(Date.now()))}catch(e){}};
 
 /* ---------- Alimentos e cálculos ---------- */
 let BASE=[];
@@ -113,7 +116,7 @@ const amt=x=>x.pi!=null&&x.f.ps&&x.f.ps[x.pi]?x.f.ps[x.pi].q*(+x.q||0):(+x.q||0)
 /* ---------- Navegação e estado de tela ---------- */
 const today=()=>iso(new Date());
 const needLogin=()=>Cloud.on()&&!S.session&&!S.localOnly;
-let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],nf=null,revForce=false,hrng=1,pinBuf="",locked=!!S.settings.pinHash,q="";
+let devOn=false,devTaps=0,editMeals=false,view=needLogin()?"login":S.onboarded?"inicio":"onb",cur=today(),meal=0,draft=[],nf=null,revForce=false,hrng=1,pinBuf="",locked=!!S.settings.pinHash&&pinExpirou(),q="";
 let ob={step:0,goal:0,sexo:"m",nome:"",idade:"",alt:"",peso:"",email:"",pw:""};
 const MAIN=["hoje","lancar","peso","ajustes"],SUB={hist:"ajustes",calc:"ajustes",cad:"ajustes",conta:"ajustes",setpin:"ajustes"};
 const go=v=>{if(v!=="ajuste")revForce=false;view=v;pinBuf="";render()};
@@ -394,7 +397,7 @@ function vAjustes(){
   const tg=(a,on,n,s)=>`<button class="row" data-a="${a}"><span class="n"><b>${n}</b><small>${s}</small></span><span class="tg ${on?"on":""}"></span></button>`;
   const lk=(a,v,n,r="›")=>`<button class="row" data-a="${a}" data-v="${v||""}"><span class="n">${n}</span><span class="mu">${r}</span></button>`;
   const c=calcGasto();
-  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Perfil e aparência</div><div class="card"><div style="display:flex;align-items:center;gap:14px">${avatar().replace('class="av"','class="av big"')}<div style="flex:1"><b>${esc((S.profile&&S.profile.nome)||"Seu perfil")}</b><div class="mu" style="font-size:12px;margin-top:2px">Toque na foto para trocar.</div>${S.profile&&S.profile.foto?`<button class="lk" data-a="fotoDel" style="margin-top:4px"><span class="bad">Remover foto</span></button>`:""}</div></div><div class="lbl">Tema</div><div class="seg">${TEMAS.map(([k,n])=>`<button data-a="temaSet" data-t="${k}" class="${(S.settings.tema||"escuro")===k?"on":""}">${n}</button>`).join("")}</div></div><div class="lbl">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN","Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes e avisos",S.settings.lembrete&&S.settings.pushOn?"Refeições, peso e check-up, mesmo com o app fechado":"Refeições, só com o app aberto. Entre na conta para avisos com o app fechado")}${lk("go","avisos","Horários dos avisos")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>
+  return page(`<h1 style="margin-bottom:14px">Ajustes</h1><div class="lbl" style="margin-top:0">Perfil e aparência</div><div class="card"><div style="display:flex;align-items:center;gap:14px">${avatar().replace('class="av"','class="av big"')}<div style="flex:1"><b>${esc((S.profile&&S.profile.nome)||"Seu perfil")}</b><div class="mu" style="font-size:12px;margin-top:2px">Toque na foto para trocar.</div>${S.profile&&S.profile.foto?`<button class="lk" data-a="fotoDel" style="margin-top:4px"><span class="bad">Remover foto</span></button>`:""}</div></div><div class="lbl">Tema</div><div class="seg">${TEMAS.map(([k,n])=>`<button data-a="temaSet" data-t="${k}" class="${(S.settings.tema||"escuro")===k?"on":""}">${n}</button>`).join("")}</div></div><div class="lbl">Segurança</div><div class="card flush">${tg("tgPin",!!S.settings.pinHash,"Bloqueio por PIN",S.settings.pinHash?"Pede o PIN de novo só depois de "+(pinMin()===0?"sempre que sair do app":({5:"5 minutos",30:"30 minutos",240:"4 horas",1440:"24 horas"}[pinMin()]||pinMin()+" min")+" fora do app"):"Pede o PIN ao abrir o app")}${tg("tgLem",S.settings.lembrete,"Lembretes e avisos",S.settings.lembrete&&S.settings.pushOn?"Refeições, peso e check-up, mesmo com o app fechado":"Refeições, só com o app aberto. Entre na conta para avisos com o app fechado")}${lk("go","avisos","Horários dos avisos")}${tg("tgWifi",S.settings.wifi,"Sincronizar só no Wi-Fi","Economiza dados móveis")}</div>${S.settings.pinHash?`<div class="lbl">Pedir o PIN de novo</div><div class="seg">${[[0,"Sempre"],[30,"30 min"],[240,"4 h"],[1440,"24 h"]].map(([n,l])=>`<button data-a="pinTempo" data-n="${n}" class="${pinMin()===n?"on":""}">${l}</button>`).join("")}</div><div class="mu" style="font-size:12px;margin-top:6px">Tempo fora do app antes de pedir o PIN outra vez. Padrão: 24 horas.</div>`:""}
   <div class="lbl">Metas</div><div class="card flush">${lk("go","plano","Plano alimentar",S.dieta?"importado ›":"›")}${lk("go","auto","Meta automática",hasPlan()?"plano manda ›":S.auto.on?"automática ligada ›":"desligada ›")}${lk("go","calc","Calculadora de gasto",c?fmt(c.rest)+" kcal ›":"›")}${lk("go","cad","Cadastro",esc(S.profile?.nome||"")+" ›")}</div>
   <div class="lbl">Dados</div><div class="card flush">${lk("go","conta","Conta",esc(S.session?S.session.email:"Neste aparelho")+" ›")}${lk("exportCsv","","Exportar lançamentos (CSV)")}<label class="row" style="cursor:pointer"><span class="n">Importar alimentos (CSV)<small>Colunas: Alimento;Grupo;Unidade;Porção;Kcal;P;C;G</small></span><input type="file" id="csv" accept=".csv,text/csv" hidden><span class="mu">›</span></label>${lk("wipe","","<span class='bad'>Apagar dados deste aparelho</span>")}</div>
   ${devOn?`<div class="lbl">Ferramentas avançadas</div><div class="card flush">${lk("go","import","Importar do app antigo")}${lk("go","finimp","Importar finanças (JSON)")}</div>`:""}<p class="mu" style="font-size:12px;text-align:center;margin-top:16px">${S.outbox.length?S.outbox.length+" alteração(ões) aguardando envio":"Tudo enviado"} · <span data-a="verTap">versão 3.0</span></p>`,{back:"inicio"});
@@ -853,6 +856,7 @@ const A={
   fotoDel:()=>{if(S.profile&&S.profile.foto){delete S.profile.foto;save();queueState();render();toast("Foto removida")}},
   saveCad:()=>{const p={...S.profile,nome:$("#c_nome").value.trim().slice(0,30),idade:num($("#c_idade").value),alt:num($("#c_alt").value),peso:num($("#c_peso").value)};
     if(!p.nome||!(p.idade>=10)||!(p.alt>=100)||!(p.peso>=30))return toast("Confira os campos");if(p.peso!==S.profile.peso){const D=day(today());D.peso=p.peso;queue("days",{date:today(),...D},true)}S.profile=p;save();queueState();toast("Cadastro salvo");go("ajustes")},
+  pinTempo:d=>{S.settings.pinTempo=+d.n;save();queueState();render()},
   tgPin:()=>{if(S.settings.pinHash){if(confirm("Desativar o bloqueio por PIN?")){S.settings.pinHash=S.settings.pinSalt=null;save();render()}}else go("setpin")},
   avAdd:()=>{const a=avisos();if(a.ref.length>=8)return toast("Máximo de 8 horários");S.settings.avisos={...a,ref:[...a.ref,"12:00"]};save();queueState();remind();render()},
   avDel:d=>{const a=avisos();a.ref.splice(+d.i,1);S.settings.avisos=a;save();queueState();remind();render()},
@@ -916,7 +920,8 @@ document.addEventListener("change",e=>{
     save();queueState();toast(n+" alimentos importados");render()})}
 });
 let hiddenAt=0;
-document.addEventListener("visibilitychange",()=>{if(document.hidden)hiddenAt=Date.now();else{if(S.settings.pinHash&&hiddenAt&&Date.now()-hiddenAt>60000){locked=true;pinBuf="";render()}Cloud.sync();remind()}});
+document.addEventListener("visibilitychange",()=>{if(document.hidden){hiddenAt=Date.now();pinStamp()}else{if(S.settings.pinHash&&hiddenAt&&Date.now()-hiddenAt>=pinMin()*60000){locked=true;pinBuf="";render()}Cloud.sync();remind()}});
+addEventListener("pagehide",pinStamp);setInterval(()=>{if(!document.hidden&&!locked)pinStamp()},30000);
 window.addEventListener("online",()=>Cloud.sync());
 
 /* ---------- Lembretes (só disparam com o app aberto; push em segundo plano exige servidor) ---------- */
