@@ -568,7 +568,7 @@ function render(){
   const sc=$(".scroll"),y=sc?sc.scrollTop:0;
   let h;
   if(locked&&S.settings.pinHash)h=vLock();
-  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,fotocrop:vFotoCrop,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),flancar:()=>page(Fin.vLancarFin(),{back:"fresumo"}),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
+  else h={inicio:vInicio,ajuste:vAjuste,auto:vAuto,treino:vTreino,treinoed:vTreinoEd,fotocrop:vFotoCrop,alimento:vAlimento,avisos:vAvisos,saude:vSaude,saudeed:vSaudeEd,thist:vHist,hist:vHist,tplano:()=>vCalc(true),fresumo:()=>page(Fin.vResumo()),flancar:()=>page(Fin.vLancarFin(),{back:"fresumo"}),fimpfat:()=>page(Fin.vFatura(),{back:"fresumo"}),fcontas:()=>page(Fin.vContas()),fviagem:()=>page(Fin.vViagem()),finimp:()=>page(Fin.vImport(),{back:"ajustes"}),onb:vOnb,hoje:vHoje,lancar:vLancar,peso:vPeso,ajustes:vAjustes,login:vLogin,import:vImport,hist:vHist,plano:vPlano,planoimp:vPlanoImp,calc:vCalc,cad:vCad,conta:vConta,setpin:vSetPin}[view]();
   $("#app").innerHTML=h;
   const n=$(".scroll");if(n&&y&&sc)n.scrollTop=y;
 }
@@ -901,6 +901,7 @@ document.addEventListener("change",e=>{
   if(t.dataset.mi!==undefined){const M=S.settings.meals,i=+t.dataset.mi,nv=t.value.trim().slice(0,30),old=M[i];
     if(!nv)return render();if(M.some((x,j)=>j!==i&&x===nv)){toast("Já existe uma refeição com esse nome");return render()}
     if(nv!==old){moveMeal(old,nv);M[i]=nv;queueState()}render();return}
+  if(t.id==="fat_file"&&t.files[0]){const f=t.files[0];t.value="";if(f.size>15e6)return toast("Arquivo grande demais");toast("Lendo a fatura...");pdfText(f).then(tx=>Fin.faturaDeTexto(tx)).catch(()=>toast("Não consegui ler o PDF"));return}
   if(t.id==="foto_file"&&t.files[0]){const f=t.files[0];t.value="";if(!S.profile)return;if(!/^image\//.test(f.type))return toast("Escolha uma imagem");
     const rd=new FileReader();rd.onerror=()=>toast("Não consegui abrir essa imagem");rd.onload=()=>{const img=new Image();img.onload=()=>{const M=1024,k=Math.min(1,M/Math.max(img.width,img.height)),w=Math.round(img.width*k),h=Math.round(img.height*k),c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);crop={src:c.toDataURL("image/jpeg",.9),w,h,z:1,ox:0,oy:0,back:view};go("fotocrop")};img.onerror=()=>toast("Não consegui abrir essa imagem");img.src=rd.result};rd.readAsDataURL(f);return}
   if(t.dataset.dp!==undefined){const x=draft[+t.dataset.dp];if(x){x.pi=t.value===""?null:+t.value;if(x.pi!=null&&!(x.q>0))x.q=1;render()}return}

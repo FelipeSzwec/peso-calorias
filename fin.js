@@ -32,8 +32,8 @@ const PAL=["#e07a8f","#6cc9c4","#c9b458","#8f8fe0","#d98c5f","#7ab87a"];
 const dica=k=>DEFROT[k]?DICA0[k]:(grp(k)?TIPOS[grp(k).tipo][2]:"");
 const COLLS=["entradas","recorrentes","sophia","parcelas","variaveis"];
 const TABS=["parcelas","recorrentes","sophia","entradas","variaveis"];
-const blank=()=>({entradas:[],recorrentes:[],sophia:[],parcelas:[],variaveis:[],grupos:[],extra:{},cfg:{reajusteMes:null},viagem:{}});
-const norm=f=>{const b=blank();if(!f||typeof f!=="object")return b;COLLS.forEach(c=>{if(Array.isArray(f[c]))b[c]=f[c]});b.cfg={...b.cfg,...(f.cfg||{})};b.viagem={...(f.viagem||{})};b.grupos=(Array.isArray(f.grupos)?f.grupos:[]).filter(g=>g&&typeof g.id==="string"&&typeof g.nome==="string"&&TIPOS[g.tipo]).slice(0,20).map(g=>({id:g.id.slice(0,40),nome:g.nome.slice(0,24),tipo:g.tipo}));b.extra={};if(f.extra&&typeof f.extra==="object")b.grupos.forEach(g=>{if(Array.isArray(f.extra[g.id]))b.extra[g.id]=f.extra[g.id]});return b};
+const blank=()=>({entradas:[],recorrentes:[],sophia:[],parcelas:[],variaveis:[],grupos:[],extra:{},faturas:{},cfg:{reajusteMes:null},viagem:{}});
+const norm=f=>{const b=blank();if(!f||typeof f!=="object")return b;COLLS.forEach(c=>{if(Array.isArray(f[c]))b[c]=f[c]});b.cfg={...b.cfg,...(f.cfg||{})};b.viagem={...(f.viagem||{})};b.grupos=(Array.isArray(f.grupos)?f.grupos:[]).filter(g=>g&&typeof g.id==="string"&&typeof g.nome==="string"&&TIPOS[g.tipo]).slice(0,20).map(g=>({id:g.id.slice(0,40),nome:g.nome.slice(0,24),tipo:g.tipo}));b.faturas=(f.faturas&&typeof f.faturas==="object")?f.faturas:{};b.extra={};if(f.extra&&typeof f.extra==="object")b.grupos.forEach(g=>{if(Array.isArray(f.extra[g.id]))b.extra[g.id]=f.extra[g.id]});return b};
 
 /* ---------- Cálculos ---------- */
 const cur=r=>{const b=idx(r.base);return nv(r.atual)+(b==null?0:NOW()-b)};
@@ -119,7 +119,7 @@ const SEC={
       {k:"inicio",l:"Cai a partir de",t:"month",get:r=>r.inicio||"",set:v=>({inicio:v})},
       {k:"rep",l:"Repete?",t:"sel",get:r=>r.rep===0?"0":"1",set:v=>({rep:v})}],
     sum:rows=>"Entram: <b>"+brl(sum(rows,r=>nv(r.valor)))+"</b>",none:"Nenhuma entrada lançada."},
-  variaveis:{l:"Variáveis",sort:(a,b)=>String(b.data).localeCompare(String(a.data)),t:r=>r.nome,s:r=>fmtData(r.data)+(r.cat?" · "+r.cat:""),v:r=>brl(r.valor),
+  variaveis:{l:"Variáveis",sort:(a,b)=>String(b.data).localeCompare(String(a.data)),t:r=>r.nome,s:r=>(r.compra?"compra "+fmtData(r.compra)+" · pago "+fmtData(r.data):fmtData(r.data))+(r.cat?" · "+r.cat:""),v:r=>brl(r.valor),
     cols:[
       {k:"data",l:"Data",t:"date",get:r=>r.data,set:v=>({data:v})},
       {k:"nome",l:"Descrição",t:"text",w:1,get:r=>r.nome,set:v=>({nome:v})},
@@ -154,6 +154,7 @@ function vResumo(){
     <div class="mu" style="font-size:14px;margin-top:4px">Previsto no mês: entram ${brl(r0.ent)} e saem ${brl(r0.out)}</div>
     <div class="stack" role="img" aria-label="Divisão das saídas do mês">${SEGN().map(([n,g,c])=>g(r0)>0?`<i style="width:${g(r0)/base*100}%;background:${c}"></i>`:"").join("")}</div>
     <div class="legd">${SEGN().map(([n,g,c])=>`<div class="lg"><span class="sw" style="background:${c}"></span><span class="mu">${esc(n)}</span><b>${brl(g(r0))}</b></div>`).join("")}</div><div class="mu" style="font-size:13px;margin-top:12px">Toque para lançar um gasto ›</div></button>
+  <label class="card tripc" style="cursor:pointer;display:block"><div class="mh" style="display:flex;align-items:center;gap:10px"><b style="flex:1">Importar fatura do cartão</b><span class="mu">›</span></div><div class="mu" style="font-size:13px;margin-top:4px">${Object.keys(f.faturas||{}).length?"Última: fatura paga em "+lab(idx(Object.keys(f.faturas).sort().pop()))+" · ":""}Escolha o PDF e o app ajusta parcelas e gastos.</div><input type="file" id="fat_file" accept=".pdf,application/pdf" hidden></label>
   ${t.list?`<button class="card tripc" data-a="go" data-v="fviagem"><div class="lbl" style="margin-top:0">${esc(objNome(f))} · ${MESL[t.ti%12]} · poupança prevista</div><div class="fbig ${t.total<0?"bad":"good"}" style="font-size:30px">${brl(t.total)}</div><div class="mu" style="font-size:13px;margin-top:2px">${t.list.length} ${t.list.length>1?"meses":"mês"} de ${lab(t.list[0].m)} a ${lab(t.list[t.list.length-1].m)} ›</div></button>`:""}
   <div class="card"><h2 style="margin-top:0">Saldo mês a mês</h2>
     <div class="fchart">${rows.map((x,k)=>`<button class="fcol" data-a="finSel" data-i="${k}" aria-pressed="${k===sel}" aria-label="${lab(x.m)}, saldo ${brl(x.saldo)}"><span class="tip">${k===sel?compact(x.saldo):""}</span><span class="fb ${x.saldo<0?"neg":""}" style="height:${Math.max(6,Math.round(Math.abs(x.saldo)/maxAbs*110))}px"></span><span class="fm">${MES[x.m%12]}</span></button>`).join("")}</div>
@@ -218,8 +219,120 @@ function vImport(){
   <div style="height:14px"></div><button class="btn" data-a="finImp">Importar</button>`;
 }
 
+
+/* ---------- Importar fatura do cartão (PDF) ---------- */
+const nrmF=t=>String(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const num2=s=>{const v=parseFloat(String(s).replace(/\./g,"").replace(",","."));return isNaN(v)?null:v};
+const CATS=[
+  ["Mercado",/supermercad|mercado(?!livre)|hortifruti|atacad|assai|carrefour|pao de acucar|sacolao|emporio|açougue|acougue/],
+  ["Transporte",/\buber\b|\b99 ?(app|pop|taxi)|cabify|posto |ipiranga|combust|estacionam|pedagio|sem parar|bilhete|metro\b/],
+  ["Alimentação",/restaurante|lanchonete|padaria|burger|ifd\*|ifood|cantina|pizza|cafeteria|sorvet|acai|doceria|bar e |churrasc/],
+  ["Saúde",/drogal|droga|farmac|raia|pacheco|clinica|hospital|laborat|odonto|consulta/],
+  ["Assinaturas",/anthropic|apple\.com|netflix|spotify|openai|google|adobe|youtube|prime video|disney|hbo|globoplay|icloud/],
+  ["Compras",/mercadolivre|amazon|centauro|magalu|shopee|americanas|aliexpress|shein|renner|riachuelo|loja/]
+];
+const OUTROS="Outros";
+const chaveLoja=d=>nrmF(d).replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean).slice(0,2).join(" ");
+function classificar(desc){
+  const rg=(F().cfg&&F().cfg.regras)||{},k=chaveLoja(desc);
+  if(rg[k])return rg[k];
+  const n=nrmF(desc);for(const[nome,re]of CATS)if(re.test(n))return nome;
+  return OUTROS}
+function parseFatura(tx){
+  const L=tx.split("\n").map(x=>x.replace(/\s+/g," ").trim()).filter(x=>x!==""),it=[];
+  const dd=(tx.match(/Data:\s*(\d{2})\/(\d{2})\/(\d{4})/)||[]),docM=+dd[2]||null,docY=+dd[3]||new Date().getFullYear();
+  const tot=tx.match(/Total da Fatura em Real[^\d-]*(-?\d[\d.]*,\d{2})/i);
+  for(let i=0;i<L.length;i++){
+    let a=L[i].match(/^(\d{1,2}) (.*?)\s?(BRL|USD|EUR)$/),j=i+1,b=null;
+    if(a)b=L[j]&&L[j].match(/^(.*?)\s*(-?\d[\d.]*,\d{2}) R\$ (-?\d[\d.]*,\d{2}) (-?\d[\d.]*,\d{2})$/);
+    if(!b){const s=L[i].match(/^(\d{1,2}) (.*?)\s?(BRL|USD|EUR) (-?\d[\d.]*,\d{2}) R\$ (-?\d[\d.]*,\d{2}) (-?\d[\d.]*,\d{2})$/);if(!s)continue;a=[null,s[1],s[2]];b=[null,"",s[4],s[5],s[6]];j=i}
+    const c=L[j+1]&&L[j+1].match(/^\/(\d{2})(?: (\d{1,2}\/\d{1,2}))?\s/);if(!c)continue;
+    let desc=(a[2]||b[1]||"").trim();if(!desc)continue;
+    const valor=num2(b[4]);if(valor==null)continue;
+    let n=null,m=null,pm=(c[2]||"").match(/^(\d{1,2})\/(\d{1,2})$/)||desc.match(/\s(\d{1,2})\/(\d{1,2})$/);
+    if(pm&&+pm[2]>=2&&+pm[1]>=1&&+pm[1]<=+pm[2]){n=+pm[1];m=+pm[2];desc=desc.replace(/\s\d{1,2}\/\d{1,2}$/,"").trim()}
+    const mes=+c[1],ano=docM&&mes>docM?docY-1:docY;
+    it.push({dia:+a[1],mes,ano,data:ano+"-"+String(mes).padStart(2,"0")+"-"+String(+a[1]).padStart(2,"0"),desc:desc.slice(0,60),valor,n,m});
+    i=j+1}
+  return{itens:it,total:tot?num2(tot[1]):null,docM,docY}}
+const nomeBonito=d=>{let s=String(d).replace(/\*/g," ").replace(/\s+/g," ").trim(),w=s.split(" ");if(w.length%2===0&&w.slice(0,w.length/2).join(" ").toLowerCase()===w.slice(w.length/2).join(" ").toLowerCase())s=w.slice(0,w.length/2).join(" ");return s.toLowerCase().replace(/(^|[\s\-\/\.])([a-zà-ÿ])/g,(m,a,b)=>a+b.toUpperCase())};
+const diaPag=()=>{const d=+((F().cfg||{}).cartao||{}).dia;return d>=1&&d<=31?d:25};
+const mesPagPadrao=()=>{const n=new Date(),d=n.getDate(),ix=NOW()+(d>diaPag()?1:0);return ym(ix)};
+const dataPag=(mes,dia)=>{const[y,m]=mes.split("-").map(Number),u=new Date(y,m,0).getDate();return mes+"-"+String(Math.min(dia,u)).padStart(2,"0")};
+function casarParcela(it,pars,usados){
+  if(it.m==null)return null;
+  const c=pars.filter(p=>nv(p.total)===it.m&&!usados.has(p.id)&&Math.abs(nv(p.valor)-it.valor)/it.valor<=.03);
+  if(!c.length)return null;
+  const tk=nrmF(it.desc).split(/[^a-z0-9]+/).filter(t=>t.length>=4);
+  c.sort((a,b)=>{const sa=tk.filter(t=>nrmF(a.nome).includes(t)).length,sb=tk.filter(t=>nrmF(b.nome).includes(t)).length;return sb-sa||Math.abs(nv(a.valor)-it.valor)-Math.abs(nv(b.valor)-it.valor)});
+  return c[0]}
+function casarRecorrente(it,recs){
+  if(it.m!=null)return null;
+  const tk=nrmF(it.desc).split(/[^a-z0-9]+/).filter(t=>t.length>=4);
+  return recs.find(r=>{const rn=nrmF(r.nome);return tk.some(t=>rn.includes(t))||rn.split(/[^a-z0-9]+/).filter(t=>t.length>=4).some(t=>nrmF(it.desc).includes(t))})||null}
+function faturaDeTexto(tx){
+  const f=F(),r=parseFatura(tx);
+  if(!r.itens.length)return ctx.toast("Não consegui ler compras nesse PDF. Por enquanto só a fatura do Bradesco.");
+  const usados=new Set(),itens=r.itens.map((it,i)=>{
+    let acao,auto,motivo="";
+    const p=casarParcela(it,f.parcelas,usados);
+    if(it.m!=null){if(p){usados.add(p.id);acao="p:"+p.id;motivo="atualiza "+p.nome}else{acao="pnova";motivo="parcela nova"}}
+    else{const rc=casarRecorrente(it,f.recorrentes);if(rc){acao="rec";motivo="já cadastrado: "+rc.nome}else{auto=classificar(it.desc);acao="g:"+auto}}
+    return{...it,id:i,acao,auto:acao,motivo}});
+  const soma=itens.reduce((s,x)=>s+x.valor,0);
+  ui.fat={mes:mesPagPadrao(),dia:diaPag(),itens,totalPdf:r.total,soma};
+  ctx.go("fimpfat")}
+const grpAvulsos=()=>grupos(F()).filter(g=>g.tipo==="avulso").map(g=>g.nome);
+const nomesGrupo=()=>{const e=grpAvulsos(),pad=CATS.map(c=>c[0]).concat([OUTROS]);return e.concat(pad.filter(n=>!e.some(x=>x.toLowerCase()===n.toLowerCase())))};
+function vFatura(){
+  const x=ui.fat;if(!x)return `<h1>Importar fatura</h1><p class="mu">Escolha o PDF da fatura em Finanças.</p>`;
+  const f=F(),op=(v,l,s)=>`<option value="${esc(v)}"${s===v?" selected":""}>${esc(l)}</option>`;
+  const gOpts=sel=>nomesGrupo().map(n=>op("g:"+n,n,sel)).join("")+op("var",rot("variaveis"),sel)+op("ign","Ignorar",sel);
+  const row=it=>{
+    let opts;
+    if(it.m!=null)opts=f.parcelas.map(p=>op("p:"+p.id,"Atualizar: "+p.nome,it.acao)).join("")+op("pnova","Criar parcela nova",it.acao)+op("ign","Ignorar",it.acao);
+    else opts=op("rec","Já cadastrado (recorrente)",it.acao)+gOpts(it.acao);
+    return `<div class="fatrow"><div class="fl"><span><b>${esc(it.desc)}</b>${it.m!=null?` <span class="good">${it.n}/${it.m}${it.n===it.m?" · última":""}</span>`:""}<br><small class="mu">${String(it.dia).padStart(2,"0")}/${String(it.mes).padStart(2,"0")}${it.motivo?" · "+esc(it.motivo):""}</small></span><b>${brl(it.valor)}</b></div><select data-fin="fatacao" data-i="${it.id}">${opts}</select></div>`};
+  const dif=x.totalPdf!=null?Math.abs(x.totalPdf-x.soma):null;
+  const gp=it=>it.m!=null?0:it.acao==="rec"?1:2;
+  const sec=(t,l)=>l.length?`<div class="lbl">${t} · ${l.length}</div><div class="card flush">${l.map(row).join("")}</div>`:"";
+  const par=x.itens.filter(i=>i.m!=null),rec=x.itens.filter(i=>i.m==null&&i.acao==="rec"),oth=x.itens.filter(i=>i.m==null&&i.acao!=="rec");
+  const pagto=dataPag(x.mes,x.dia);
+  return `<h1 style="margin-bottom:4px">Importar fatura</h1><p class="mu" style="font-size:13px;margin:0 0 12px">Confira como cada compra entra. O que você mudar aqui vale só para esta importação, e o app aprende o grupo das lojas que você corrigir.</p>
+  <div class="card"><div class="grid2"><div class="fld"><label for="fat_mes">Mês do pagamento</label><input id="fat_mes" type="month" data-fin="fatmes" value="${esc(x.mes)}"></div><div class="fld"><label for="fat_dia">Dia do pagamento</label><input id="fat_dia" type="number" min="1" max="31" inputmode="numeric" data-fin="fatdia" value="${x.dia}"></div></div>
+  <p class="mu" style="font-size:13px;margin:10px 0 0">As compras entram no mês em que a fatura é paga: <b>${fmtData(pagto)}/${pagto.slice(0,4)}</b>.</p>
+  <div class="fl" style="margin-top:10px"><span class="mu">Soma das compras</span><b>${brl(x.soma)}</b></div>${x.totalPdf!=null?`<div class="fl"><span class="mu">Total da fatura</span><b>${brl(x.totalPdf)}</b></div><p class="${dif<.02?"good":"bad"}" style="font-size:13px;margin:6px 0 0">${dif<.02?"Confere com o total da fatura.":"Diferença de "+brl(dif)+" em relação ao total."}</p>`:""}</div>
+  ${sec("Parcelas",par)}${sec("Recorrentes reconhecidas",rec)}${sec("Outras compras",oth)}
+  <div class="frow" style="margin-top:14px"><button class="btn" data-a="fatOk">Importar fatura</button><button class="btn ghost" data-a="fatCancel">Cancelar</button></div>`}
+function aplicarFatura(){
+  const x=ui.fat;if(!x)return;const f=F(),pagto=dataPag(x.mes,x.dia);
+  f.cfg=f.cfg||{};f.cfg.cartao={...(f.cfg.cartao||{}),dia:x.dia};f.cfg.regras={...(f.cfg.regras||{})};
+  // limpa importações anteriores da mesma fatura
+  f.variaveis=f.variaveis.filter(v=>v.fat!==x.mes);
+  if(f.extra)Object.keys(f.extra).forEach(k=>{f.extra[k]=f.extra[k].filter(v=>v.fat!==x.mes)});
+  let nP=0,nC=0,nN=0;
+  const grupoDe=nome=>{let g=grupos(f).find(g=>g.tipo==="avulso"&&g.nome.toLowerCase()===nome.toLowerCase());if(!g){g={id:"g"+ctx.uid().replace(/-/g,"").slice(0,12),nome:nome.slice(0,24),tipo:"avulso"};f.grupos=[...grupos(f),g];(f.extra=f.extra||{})[g.id]=[]}return g};
+  x.itens.forEach(it=>{
+    const a=it.acao;if(a==="ign"||a==="rec")return;
+    if(it.m!=null){
+      if(a.startsWith("p:")){const p=f.parcelas.find(p=>p.id===a.slice(2));if(p){p.atual=it.n;p.base=x.mes;p.valor=it.valor;p.total=it.m;nP++}}
+      else if(a==="pnova"){f.parcelas.push({id:ctx.uid(),nome:nomeBonito(it.desc).slice(0,40),valor:it.valor,atual:it.n,total:it.m,base:x.mes});nN++}
+      return}
+    const base={id:ctx.uid(),data:pagto,compra:it.data,nome:it.desc,valor:it.valor,cat:"",fat:x.mes};
+    if(a==="var")f.variaveis.push(base);
+    else if(a.startsWith("g:")){const g=grupoDe(a.slice(2));f.extra[g.id].push(base)}
+    else return;
+    nC++;
+    if(a!==it.auto){const k=chaveLoja(it.desc);if(k)f.cfg.regras[k]=a==="var"?"Variáveis":a.slice(2)}
+  });
+  f.faturas={...(f.faturas||{}),[x.mes]:{total:x.totalPdf!=null?x.totalPdf:x.soma,em:todayStr()}};
+  ui.fat=null;commit0();
+  ctx.toast("Fatura importada: "+nP+" parcela(s) atualizada(s), "+nN+" nova(s), "+nC+" compra(s)");
+  ctx.go("fresumo")}
+
 /* ---------- Ações ---------- */
 function commit(){ctx.save();ctx.queueState();ctx.render()}
+function commit0(){ctx.save();ctx.queueState()}
 function cleanImport(j){
   if(!j||typeof j!=="object")return null;
   const out=blank(),id=()=>ctx.uid();
@@ -261,6 +374,9 @@ function actions(c){
   document.addEventListener("change",e=>{
     const k=e.target.dataset&&e.target.dataset.fin;if(!k)return;
     const f=F(),v=e.target.value,x=parseFloat(v);
+    if(k==="fatacao"){const it=ui.fat&&ui.fat.itens[+e.target.dataset.i];if(it){it.acao=v;ctx.render()}return}
+    if(k==="fatmes"){if(ui.fat&&/^\d{4}-\d{2}$/.test(v)){ui.fat.mes=v;ctx.render()}return}
+    if(k==="fatdia"){if(ui.fat){const d=parseInt(v,10);ui.fat.dia=d>=1&&d<=31?d:25;ctx.render()}return}
     if(k==="rot"){const rk=e.target.dataset.rk,nn=v.trim().slice(0,24);if(DEFROT[rk])f.cfg.rot={...(f.cfg.rot||{}),[rk]:nn};else{const g=grp(rk);if(g&&nn)g.nome=nn}}
     else if(k==="nome")f.viagem.nome=v.trim().slice(0,30);
     else if(k==="teto")f.viagem.teto=isFinite(x)&&x>=0?x:0;
@@ -276,6 +392,8 @@ function actions(c){
     finGrupoNovo:()=>{ui.novoGrupo=!ui.novoGrupo;ctx.render()},
     finGrupoSave:()=>{const n=(document.getElementById("gn_nome").value||"").trim().slice(0,24),t=document.getElementById("gn_tipo").value;if(!n)return ctx.toast("Dê um nome ao grupo");if(!TIPOS[t])return;const f=F();if(grupos(f).length>=20)return ctx.toast("Limite de 20 grupos");if(Object.keys(DEFROT).some(k=>rot(k).toLowerCase()===n.toLowerCase())||grupos(f).some(g=>g.nome.toLowerCase()===n.toLowerCase()))return ctx.toast("Já existe um grupo com esse nome");const id="g"+ctx.uid().replace(/-/g,"").slice(0,12);f.grupos=[...grupos(f),{id,nome:n,tipo:t}];(f.extra=f.extra||{})[id]=[];ui.tab=id;ui.novoGrupo=false;commit()},
     finGrupoDel:d=>{const g=grp(d.id);if(!g||!confirm("Excluir o grupo "+g.nome+" e tudo que está nele?"))return;const f=F();f.grupos=grupos(f).filter(x=>x.id!==d.id);if(f.extra)delete f.extra[d.id];ui.tab="parcelas";ui.open=null;commit()},
+    fatOk:()=>aplicarFatura(),
+    fatCancel:()=>{ui.fat=null;ctx.go("fresumo")},
     finGasto:()=>{ui.dest="variaveis";ctx.go("flancar")},
     finLancar:()=>{ui.dest=ui.tab;ctx.go("flancar")},
     finDest:d=>{if(DEFROT[d.t]||grp(d.t)){ui.dest=d.t;ctx.render()}},
@@ -297,5 +415,5 @@ function actions(c){
     finImp:()=>importText(document.getElementById("fi_txt").value)
   };
 }
-window.Fin={vLancarFin,objNome,importText,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
+window.Fin={vFatura,faturaDeTexto,vLancarFin,objNome,importText,actions,norm,blank,mesAtual,homeSum,vResumo,vContas,vViagem,vImport,brl};
 })();

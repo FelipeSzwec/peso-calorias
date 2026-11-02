@@ -127,3 +127,4 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 input[type=date],input[type=month],input[type=time]{padding:0 12px;line-height:normal}
 input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{margin:0;padding:0;min-height:0;line-height:52px;text-align:left}
 input[type=date]::-webkit-datetime-edit,input[type=month]::-webkit-datetime-edit,input[type=time]::-webkit-datetime-edit{padding:0;line-height:52px}
+.fatrow{padding:10px 16px;border-top:1px solid var(--ln)}.fatrow:first-child{border-top:0}.fatrow select{margin-top:8px;padding:10px 12px;font-size:14px}.fatrow .fl{display:flex;justify-content:space-between;gap:10px}
